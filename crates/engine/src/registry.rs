@@ -319,6 +319,9 @@ impl HarnessRegistry {
     /// Load `harness-prefs.json` from the engine data dir and remember the
     /// path for writes. Corrupt/missing files fall back to the default set.
     pub fn load_prefs(&self, data_dir: &Path) {
+        // Native HTTP providers keep device-local credentials/config beside
+        // the rest of the engine state, never in synced chat/settings docs.
+        zeron_harness::provider_config::set_root(data_dir);
         let path = data_dir.join("harness-prefs.json");
         let loaded = std::fs::read_to_string(&path)
             .ok()
@@ -386,7 +389,7 @@ impl HarnessRegistry {
             return Err(format!("{id:?} cannot be enabled from Settings"));
         }
         if on && !self.installed_for(id) {
-            return Err(format!("{id:?} CLI is not installed on this device"));
+            return Err(format!("{id:?} provider is not available on this device"));
         }
         let enabled = self.enabled_set();
         match (on, enabled.contains(&id)) {
@@ -755,6 +758,72 @@ pub fn default_registry() -> HarnessRegistry {
         },
         Box::new(|| zeron_harness::AcpHarness::antigravity().installed()),
         Box::new(|| Ok(Arc::new(zeron_harness::AcpHarness::antigravity()) as Arc<dyn Harness>)),
+    );
+
+    // Native HTTP providers. Unlike CLI-backed harnesses these slots never
+    // spawn a discovery process: availability is configuration (OpenRouter /
+    // custom endpoint) or a fast local-listener probe (Ollama / LM Studio).
+    registry.register_lazy(
+        HarnessDescriptor {
+            id: HarnessId::OpenRouter,
+            name: "OpenRouter".into(),
+            supports_steering: false,
+            steering_mode: SteeringMode::TurnBoundary,
+            reasoning_levels: vec![
+                ReasoningLevel::Minimal,
+                ReasoningLevel::Low,
+                ReasoningLevel::Medium,
+                ReasoningLevel::High,
+                ReasoningLevel::XHigh,
+            ],
+            installed: false,
+            can_install: false,
+            enabled: None,
+        },
+        Box::new(|| zeron_harness::OpenAiCompatibleHarness::openrouter().installed()),
+        Box::new(|| Ok(Arc::new(zeron_harness::OpenAiCompatibleHarness::openrouter()) as Arc<dyn Harness>)),
+    );
+    registry.register_lazy(
+        HarnessDescriptor {
+            id: HarnessId::Ollama,
+            name: "Ollama".into(),
+            supports_steering: false,
+            steering_mode: SteeringMode::TurnBoundary,
+            reasoning_levels: Vec::new(),
+            installed: false,
+            can_install: false,
+            enabled: None,
+        },
+        Box::new(|| zeron_harness::OpenAiCompatibleHarness::ollama().installed()),
+        Box::new(|| Ok(Arc::new(zeron_harness::OpenAiCompatibleHarness::ollama()) as Arc<dyn Harness>)),
+    );
+    registry.register_lazy(
+        HarnessDescriptor {
+            id: HarnessId::LmStudio,
+            name: "LM Studio".into(),
+            supports_steering: false,
+            steering_mode: SteeringMode::TurnBoundary,
+            reasoning_levels: Vec::new(),
+            installed: false,
+            can_install: false,
+            enabled: None,
+        },
+        Box::new(|| zeron_harness::OpenAiCompatibleHarness::lm_studio().installed()),
+        Box::new(|| Ok(Arc::new(zeron_harness::OpenAiCompatibleHarness::lm_studio()) as Arc<dyn Harness>)),
+    );
+    registry.register_lazy(
+        HarnessDescriptor {
+            id: HarnessId::OpenAiCompatible,
+            name: "OpenAI Compatible".into(),
+            supports_steering: false,
+            steering_mode: SteeringMode::TurnBoundary,
+            reasoning_levels: Vec::new(),
+            installed: false,
+            can_install: false,
+            enabled: None,
+        },
+        Box::new(|| zeron_harness::OpenAiCompatibleHarness::custom().installed()),
+        Box::new(|| Ok(Arc::new(zeron_harness::OpenAiCompatibleHarness::custom()) as Arc<dyn Harness>)),
     );
     registry
 }

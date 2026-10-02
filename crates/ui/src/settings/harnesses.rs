@@ -69,6 +69,15 @@ fn offers_install(harness: HarnessId, installed: bool, can_install: bool) -> boo
 }
 
 fn install_hint(harness: HarnessId, enabled: bool, can_install: bool) -> String {
+    match harness {
+        HarnessId::OpenRouter => return "Add an OpenRouter API key to enable".into(),
+        HarnessId::Ollama => return "Start Ollama's OpenAI-compatible server to enable".into(),
+        HarnessId::LmStudio => return "Start the LM Studio local server to enable".into(),
+        HarnessId::OpenAiCompatible => {
+            return "Configure an OpenAI-compatible endpoint to enable".into()
+        }
+        _ => {}
+    }
     if harness == HarnessId::Antigravity {
         return if can_install {
             "Install Antigravity to enable"
@@ -112,6 +121,10 @@ pub fn cli_name(harness: HarnessId) -> &'static str {
         HarnessId::Pi => "pi",
         HarnessId::Opencode => "opencode",
         HarnessId::Antigravity => "Antigravity",
+        HarnessId::OpenRouter => "OpenRouter API",
+        HarnessId::Ollama => "Ollama server",
+        HarnessId::LmStudio => "LM Studio server",
+        HarnessId::OpenAiCompatible => "OpenAI-compatible server",
         HarnessId::Mock => "mock",
     }
 }
