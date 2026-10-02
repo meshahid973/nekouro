@@ -103,6 +103,121 @@ struct SetHarnessEnabledParams {
     enabled: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeProviderConfigParams {
+    harness: HarnessId,
+    #[serde(default)]
+    api_key: Option<String>,
+    #[serde(default)]
+    clear_api_key: bool,
+    #[serde(default)]
+    base_url: Option<String>,
+    #[serde(default)]
+    clear_base_url: bool,
+}
+
+fn is_native_provider(harness: HarnessId) -> bool {
+    matches!(
+        harness,
+        HarnessId::OpenRouter
+            | HarnessId::Ollama
+            | HarnessId::LmStudio
+            | HarnessId::OpenAiCompatible
+    )
+}
+
+fn native_provider_base_url(harness: HarnessId) -> Result<Option<String>, RpcError> {
+    let value = match harness {
+        HarnessId::OpenRouter => Some("https://openrouter.ai/api/v1".into()),
+        HarnessId::Ollama => Some(
+            std::env::var("NEKOURO_OLLAMA_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:11434/v1".into()),
+        ),
+        HarnessId::LmStudio => Some(
+            std::env::var("NEKOURO_LM_STUDIO_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:1234/v1".into()),
+        ),
+        HarnessId::OpenAiCompatible => zeron_harness::provider_config::custom_base_url(),
+        _ => return Err(RpcError::Failed("not a native HTTP provider".into())),
+    };
+    Ok(value)
+}
+
+fn native_provider_config_value(harness: HarnessId) -> Result<serde_json::Value, RpcError> {
+    if !is_native_provider(harness) {
+        return Err(RpcError::Failed("not a native HTTP provider".into()));
+    }
+    Ok(serde_json::json!({
+        "harness": harness,
+        "hasApiKey": zeron_harness::provider_config::has_api_key(harness),
+        "baseUrl": native_provider_base_url(harness)?,
+        "baseUrlEditable": harness == HarnessId::OpenAiCompatible,
+        "apiKeyRequired": harness == HarnessId::OpenRouter,
+    }))
+}
+
+fn set_native_provider_config(
+    params: &NativeProviderConfigParams,
+) -> Result<serde_json::Value, RpcError> {
+    if !is_native_provider(params.harness) {
+        return Err(RpcError::Failed("not a native HTTP provider".into()));
+    }
+    if params.clear_api_key && params.api_key.is_some() {
+        return Err(RpcError::Failed(
+            "apiKey and clearApiKey cannot be supplied together".into(),
+        ));
+    }
+    if params.clear_base_url && params.base_url.is_some() {
+        return Err(RpcError::Failed(
+            "baseUrl and clearBaseUrl cannot be supplied together".into(),
+        ));
+    }
+    if (params.base_url.is_some() || params.clear_base_url)
+        && params.harness != HarnessId::OpenAiCompatible
+    {
+        return Err(RpcError::Failed(
+            "only the custom OpenAI-compatible provider has an editable base URL".into(),
+        ));
+    }
+
+    if params.clear_api_key {
+        zeron_harness::provider_config::set_api_key(params.harness, None)
+            .map_err(|error| RpcError::Failed(error.to_string()))?;
+    } else if let Some(key) = params
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+    {
+        zeron_harness::provider_config::set_api_key(params.harness, Some(key))
+            .map_err(|error| RpcError::Failed(error.to_string()))?;
+    }
+
+    if params.clear_base_url {
+        zeron_harness::provider_config::set_custom_base_url(None)
+            .map_err(|error| RpcError::Failed(error.to_string()))?;
+    } else if let Some(raw) = params.base_url.as_deref() {
+        let raw = raw.trim().trim_end_matches('/');
+        if raw.is_empty() {
+            zeron_harness::provider_config::set_custom_base_url(None)
+                .map_err(|error| RpcError::Failed(error.to_string()))?;
+        } else {
+            let url = reqwest::Url::parse(raw)
+                .map_err(|_| RpcError::Failed("base URL is invalid".into()))?;
+            if !matches!(url.scheme(), "http" | "https") {
+                return Err(RpcError::Failed(
+                    "base URL must use http or https".into(),
+                ));
+            }
+            zeron_harness::provider_config::set_custom_base_url(Some(raw))
+                .map_err(|error| RpcError::Failed(error.to_string()))?;
+        }
+    }
+
+    native_provider_config_value(params.harness)
+}
+
 async fn update_harness_enabled(
     registry: &HarnessRegistry,
     harness: HarnessId,
@@ -1338,6 +1453,8 @@ fn forwardable(method: &str) -> bool {
         method,
         methods::FORK_SIDE_CHAT
             | methods::LIST_HARNESSES
+            | methods::GET_NATIVE_PROVIDER_CONFIG
+            | methods::SET_NATIVE_PROVIDER_CONFIG
             | methods::INSTALL_HARNESS
             | methods::CANCEL_INSTALL
             | methods::GET_TITLE_SETTINGS
@@ -1711,6 +1828,18 @@ impl RpcService for EngineRpc {
             methods::ENGINE_INFO => RpcReply::value(&self.engine_info),
             methods::ENGINE_READY => RpcReply::value(&serde_json::json!({ "ready": true })),
             methods::LIST_HARNESSES => RpcReply::value(&self.registry.descriptors()),
+            methods::GET_NATIVE_PROVIDER_CONFIG => {
+                let p: NativeProviderConfigParams = parse_params(params)?;
+                RpcReply::value(&native_provider_config_value(p.harness)?)
+            }
+            methods::SET_NATIVE_PROVIDER_CONFIG => {
+                let p: NativeProviderConfigParams = parse_params(params)?;
+                let config = set_native_provider_config(&p)?;
+                RpcReply::value(&serde_json::json!({
+                    "config": config,
+                    "harnesses": self.registry.descriptors(),
+                }))
+            }
             methods::INSTALL_HARNESS => {
                 let p: ListModelsParams = parse_params(params)?;
                 let installing = self.registry.installs.begin(p.harness)?;
