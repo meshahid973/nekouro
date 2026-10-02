@@ -173,7 +173,7 @@ fn cli_and_dir(id: HarnessId) -> (&'static str, &'static str) {
         Grok => ("grok", "~/.grok/bin or the npm global bin"),
         Hermes => ("hermes", "~/.local/bin or ~/.hermes/bin"),
         Devin => ("devin", "~/.local/bin"),
-        Antigravity => ("agy_acp_server", "~/.zeron/adapters"),
+        Antigravity => ("agy_acp_server", "~/.nekouro/adapters"),
         Mock => ("mock", "PATH"),
     }
 }
@@ -209,7 +209,7 @@ fn post_install(id: HarnessId) -> Result<(), HarnessError> {
     }
     let (cli, dir) = cli_and_dir(id);
     Err(HarnessError::Install(format!(
-        "installer finished but `{cli}` was not found on PATH; open a new terminal or add {dir} to PATH"
+        "installer finished, but NekoUro could not discover `{cli}` in the current or persisted user PATH; expected it under {dir}"
     )))
 }
 
@@ -309,8 +309,11 @@ pub async fn install_harness(id: HarnessId, cancel: CancellationToken) -> Result
     } else {
         run(command(method)?, cancel, DEADLINE).await
     };
-    invalidate_versions(id);
     result?;
+    // Native/vendor installers can mutate Windows' persisted User PATH without
+    // changing this already-running GUI process. Refresh it before discovery.
+    crate::executable::refresh_environment_paths();
+    invalidate_versions(id);
     post_install(id)
 }
 
@@ -324,8 +327,11 @@ pub async fn install_with_command(
     let mut cmd = shell_command(script)?;
     configure(&mut cmd);
     let result = run(cmd, cancel, DEADLINE).await;
-    invalidate_versions(id);
     result?;
+    // Native/vendor installers can mutate Windows' persisted User PATH without
+    // changing this already-running GUI process. Refresh it before discovery.
+    crate::executable::refresh_environment_paths();
+    invalidate_versions(id);
     post_install(id)
 }
 

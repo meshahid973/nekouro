@@ -862,7 +862,7 @@ impl HarnessesPage {
                     HarnessId::Cursor => meta.push(
                         div()
                             .text_color(theme.text_muted.opacity(0.65))
-                            .child("Cursor SDK · Managed by Zeron")
+                            .child("Cursor SDK · Managed by NekoUro")
                             .into_any_element(),
                     ),
                     HarnessId::Pi => meta.push(

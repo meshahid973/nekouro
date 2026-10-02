@@ -79,12 +79,24 @@ fn validate_native_override_with(
 }
 
 pub(crate) fn find_on_paths(exe: &str, extra: Vec<PathBuf>) -> Option<PathBuf> {
+    let mut supplemental = Vec::new();
+    if let Some(path) = crate::shell_env::login_shell_path() {
+        supplemental.extend(std::env::split_paths(path));
+    }
+    #[cfg(windows)]
+    if let Some(path) = windows_persisted_path() {
+        supplemental.extend(std::env::split_paths(&path));
+    }
+    let supplemental = (!supplemental.is_empty())
+        .then(|| std::env::join_paths(supplemental).ok())
+        .flatten();
+
     let mut candidates = Vec::new();
     find_on_paths_matching_with(
         exe,
         extra,
         &|key| std::env::var_os(key),
-        crate::shell_env::login_shell_path().map(OsString::from),
+        supplemental,
         Platform::current(),
         |path| {
             if runnable(path) {
@@ -96,6 +108,71 @@ pub(crate) fn find_on_paths(exe: &str, extra: Vec<PathBuf>) -> Option<PathBuf> {
     newest_candidate(candidates)
 }
 
+#[cfg(windows)]
+type PersistedPathCache = std::sync::Mutex<Option<Option<OsString>>>;
+
+#[cfg(windows)]
+static WINDOWS_PERSISTED_PATH: std::sync::OnceLock<PersistedPathCache> =
+    std::sync::OnceLock::new();
+
+/// Read the machine + user PATH written in the Windows environment registry.
+///
+/// A GUI process keeps the PATH it inherited at launch. Native/vendor CLI
+/// installers can update the persistent PATH successfully while NekoUro is
+/// still running, so the process PATH alone can make a successful install
+/// look like a failure until the app is restarted.
+#[cfg(windows)]
+fn windows_persisted_path() -> Option<OsString> {
+    let cache = WINDOWS_PERSISTED_PATH.get_or_init(|| std::sync::Mutex::new(None));
+    let mut slot = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(value) = slot.as_ref() {
+        return value.clone();
+    }
+    let value = capture_windows_persisted_path();
+    *slot = Some(value.clone());
+    value
+}
+
+#[cfg(windows)]
+fn capture_windows_persisted_path() -> Option<OsString> {
+    let powershell = std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .map(|root| {
+            root.join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe")
+        })
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("powershell.exe"));
+    let output = std::process::Command::new(powershell)
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$m=[Environment]::GetEnvironmentVariable(\'Path\',\'Machine\');$u=[Environment]::GetEnvironmentVariable(\'Path\',\'User\');[Console]::Out.Write(($m+\';\'+$u))",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    (!value.is_empty()).then(|| OsString::from(value))
+}
+
+/// Explicit installs may have changed the persistent environment underneath
+/// the running GUI. Drop the snapshot before post-install verification.
+pub(crate) fn refresh_environment_paths() {
+    #[cfg(windows)]
+    if let Some(cache) = WINDOWS_PERSISTED_PATH.get() {
+        *cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+}
 pub(crate) fn binary_hint(path: &Path) -> String {
     format!(
         "{} (version {})",
