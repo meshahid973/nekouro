@@ -1,6 +1,6 @@
-# Contributing to Zeron
+# Contributing to NekoUro
 
-Thanks for helping build Zeron. This guide covers how to set up, what a good
+Thanks for helping build NekoUro. This guide covers how to set up, what a good
 pull request looks like, and the handful of rules that keep a local-first,
 multi-device app working across versions.
 
@@ -31,15 +31,15 @@ sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
 **macOS** needs Xcode. **Windows** is covered in
 [docs/reference/windows-development.md](docs/reference/windows-development.md).
 
-Build and run the app with `cargo run -p zeron`.
+Build and run the app with `cargo run -p nekouro`.
 
-### Running a dev build next to an installed Zeron
+### Running a dev build next to an installed NekoUro
 
 An installed daemon holds the default data directory and IPC port. Give your
 dev build its own so the two never share state:
 
 ```sh
-ZERON_DATA_DIR=~/.zeron-dev ZERON_IPC_PORT=27700 cargo run -p zeron
+ZERON_DATA_DIR=~/.zeron-dev ZERON_IPC_PORT=27700 cargo run -p nekouro
 ```
 
 Useful knobs for exercising the UI without a real agent or account:
@@ -88,7 +88,7 @@ cargo test --locked -p zeron-preview
 
 ### Compatibility across versions
 
-Zeron runs on several devices at once, and they update independently. A UI may
+NekoUro runs on several devices at once, and they update independently. A UI may
 talk to an older local daemon, and a chat may be hosted on a remote device
 running an older engine. So:
 
@@ -169,5 +169,5 @@ running an older engine. So:
 
 ## License
 
-Zeron is [MIT licensed](LICENSE). By contributing, you agree that your
+NekoUro is [MIT licensed](LICENSE). By contributing, you agree that your
 contributions are licensed under the same terms.

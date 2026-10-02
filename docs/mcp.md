@@ -1,8 +1,8 @@
-# Zeron MCP server
+# NekoUro MCP server
 
-`zeron mcp` serves the Model Context Protocol on stdin/stdout and proxies every
+`nekouro mcp` serves the Model Context Protocol on stdin/stdout and proxies every
 tool into the running engine's localhost IPC (`ws://127.0.0.1:$ZERON_IPC_PORT`,
-default 27654) — the same `zeron_rpc` surface the headed app and `zeron sync`
+default 27654) — the same `zeron_rpc` surface the headed app and `nekouro sync`
 dial. It is a subcommand of the one `zeron` binary: no Node runtime, no extra
 install, a few MB resident.
 
@@ -23,7 +23,7 @@ originating chat in the environment:
 | `ZERON_DEVICE_ID` | That chat's host device.                                      |
 
 When `ZERON_CHAT_ID` is set, every `send_message` is prefixed with a
-`[Message from Zeron chat <title> (<id8>) …]` line so the receiving agent and the
+`[Message from NekoUro chat <title> (<id8>) …]` line so the receiving agent and the
 human reading that transcript can tell an agent-to-agent message from a typed
 one, and the server refuses to message its own chat. The transcript renders
 this routing header as “Message from **chat name**”, keeping the full routing
@@ -78,7 +78,7 @@ registers `zeron_<tool>` tools, propagates cancellation and errors, and closes
 the MCP child when the Pi session shuts down.
 
 Title runs never carry it. A run with no served port (embedded engine that
-lost the bind) gets no Zeron tools rather than a dead server.
+lost the bind) gets no NekoUro tools rather than a dead server.
 
 ### Forks and the explorer
 
