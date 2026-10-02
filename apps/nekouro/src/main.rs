@@ -1,5 +1,5 @@
-//! NekoUro — headed by default; `zeron headless` runs the engine alone. Both start
-//! local-only without credentials. `zeron login` and `zeron logout` select the
+//! NekoUro — headed by default; `nekouro headless` runs the engine alone. Both start
+//! local-only without credentials. `nekouro login` and `nekouro logout` select the
 //! profile used by the next engine start without mutating a live runtime.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
@@ -48,7 +48,7 @@ enum Command {
     /// proxying to the running engine's IPC. Agents use it to create, read,
     /// and message chats. Logs go to stderr; stdout is the protocol.
     Mcp,
-    /// Manage `zeron headless` as a background service (launchd / systemd --user).
+    /// Manage `nekouro headless` as a background service (launchd / systemd --user).
     Daemon {
         #[command(subcommand)]
         command: DaemonCommand,
@@ -363,7 +363,7 @@ fn harness_from_env() -> zeron_engine::HarnessId {
     }
 }
 
-/// `zeron sync`: dial the running engine's IPC and print per-room sync state.
+/// `nekouro sync`: dial the running engine's IPC and print per-room sync state.
 /// The introspection surface every 2026-08 incident was missing — "is this
 /// device's workspace room actually receiving?" as a one-liner.
 async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
@@ -486,7 +486,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `{data_dir}/logs/zeron-{mode}.log`, previous launch preserved as `.old`.
+/// `{data_dir}/logs/nekouro-{mode}.log`, previous launch preserved as `.old`.
 /// Headed and headless are separate files so an embedded-engine app and a
 /// daemon on the same machine never interleave writes.
 ///
@@ -497,7 +497,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
 /// second unlinked it entirely, and the daemon spent the rest of the incident
 /// logging to an orphaned inode (an entire day of sync diagnostics gone at
 /// the exact moment they were needed). A launch that finds the canonical file
-/// locked logs to `zeron-{mode}.{pid}.log` instead; the next lock-holding
+/// locked logs to `nekouro-{mode}.{pid}.log` instead; the next lock-holding
 /// launch sweeps pid-suffixed files older than a week.
 fn open_log_file(mode: &str) -> Option<std::fs::File> {
     let dir = paths::data_dir().join("logs");
@@ -557,14 +557,14 @@ mod log_file_tests {
         let dir = dir.path();
         // First launch owns the canonical file and keeps writing.
         let first = open_log_file_in(dir, "headed").expect("first log");
-        assert!(dir.join("zeron-headed.log").is_file());
+        assert!(dir.join("nekouro-headed.log").is_file());
         // Second launch while the first is alive: canonical file untouched,
         // pid-suffixed overflow file instead (the 2026-08-04 clobber).
         let second = open_log_file_in(dir, "headed").expect("second log");
-        let pid_path = dir.join(format!("zeron-headed.{}.log", std::process::id()));
+        let pid_path = dir.join(format!("nekouro-headed.{}.log", std::process::id()));
         assert!(pid_path.is_file(), "expected pid-suffixed overflow log");
         assert!(
-            !dir.join("zeron-headed.log.old").exists(),
+            !dir.join("nekouro-headed.log.old").exists(),
             "live canonical log must not be rotated away"
         );
         drop(second);
@@ -572,14 +572,14 @@ mod log_file_tests {
         drop(first);
         let third = open_log_file_in(dir, "headed").expect("third log");
         assert!(
-            dir.join("zeron-headed.log.old").is_file(),
+            dir.join("nekouro-headed.log.old").is_file(),
             "rotation resumes"
         );
         drop(third);
     }
 }
 
-/// Delete `zeron-{mode}.{pid}.log` overflow files older than a week — they
+/// Delete `nekouro-{mode}.{pid}.log` overflow files older than a week — they
 /// only exist when a second instance raced a live one for the canonical log.
 #[cfg(unix)]
 fn sweep_stale_pid_logs(dir: &std::path::Path, mode: &str) {

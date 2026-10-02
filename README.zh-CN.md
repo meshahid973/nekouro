@@ -11,11 +11,12 @@
 ## 在本地安装运行（Linux）
 
 ```bash
-curl -fsSL https://zeron.sh/install.sh | sh
-nekouro status
+git clone https://github.com/meshahid973/nekouro.git
+cd nekouro
+cargo run --locked -p nekouro
 ```
 
-安装脚本会马上把守护进程拉起来，重启之后也会自己回来。不需要登录，也不需要配置同步。它还会把 NekoUro 加入应用启动器：在 `~/.local/share`（或 `$XDG_DATA_HOME`）下写入用户级的 `nekouro.desktop` 和图标，每次运行安装脚本都会重写。
+如需可安装的 Linux 包，可运行 `scripts/package-linux.sh`，解压 `target/package` 下生成的压缩包，再运行其中的 `install.sh`。该安装包会写入用户级 `nekouro.desktop` 和图标。
 
 日常命令：
 
@@ -47,16 +48,14 @@ nekouro daemon start
 
 如果有引擎正占着数据目录，`nekouro login` 和 `nekouro logout` 会拒绝改动凭据。桌面应用同样遵守这条边界：profile 要等下次重启才切换。
 
-macOS 上用桌面版发行包，或者从源码构建 `zeron`，再运行 `nekouro daemon install` 装上 launchd 服务。
+macOS 上用桌面版发行包，或者从源码构建 `nekouro`，再运行 `nekouro daemon install` 装上 launchd 服务。
 
-## 赞助
+## 上游与署名
 
-感谢 [The Context Company](https://www.thecontextcompany.com/) 对 NekoUro 的赞助。
-
-你也可以资助 NekoUro 的开发。欢迎个人和公司[通过 GitHub 成为赞助者](https://github.com/sponsors/zeronsh)。
+NekoUro 基于 [Zeron](https://github.com/zeronsh/zeron)，并保留 Zeron 的 MIT 许可证声明。上游 Zeron 项目将 [The Context Company](https://www.thecontextcompany.com/) 列为赞助方；相关赞助页面由上游项目维护。
 
 ---
 
-想参与开发，或者好奇它怎么跑起来的？[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zeronsh/zeron)，也可以看 [ARCHITECTURE.md](ARCHITECTURE.md)。
+想参与开发，或者好奇它怎么跑起来的？可以看 [ARCHITECTURE.md](ARCHITECTURE.md)。上游 Zeron 的资料见[其仓库](https://github.com/zeronsh/zeron)。
 
 采用 [MIT License](LICENSE)。

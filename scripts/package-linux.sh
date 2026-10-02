@@ -41,7 +41,7 @@ cat >"$STAGE/install.sh" <<'INSTALL'
 #!/usr/bin/env bash
 # Install NekoUro for this user (no root needed), in the layout the in-app
 # updater manages: ~/.nekouro/app/<version> behind a `current` symlink — the
-# same layout `curl -fsSL https://nekouro.sh/install.sh | sh` uses — with
+# same layout used by NekoUro's packaged release installer — with
 # ~/.local/bin/nekouro and the desktop entry pointing through it.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

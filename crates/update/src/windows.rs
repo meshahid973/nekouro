@@ -23,7 +23,7 @@ const BACKUP: &str = "nekouro.exe.old";
 const INCOMING: &str = ".nekouro-update-incoming.exe";
 /// The installer's uninstall entry (`AppId` in `dist/windows/zeron.iss`, plus
 /// Inno Setup's `_is1` suffix). Settings → Apps reads `DisplayVersion` here.
-const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AD5DEC34-E254-467B-8F24-8127EBAF4DA6}_is1";
+const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{D2402C03-F657-4910-8FC3-33F7334881B7}_is1";
 
 #[derive(serde::Deserialize)]
 struct Config {
