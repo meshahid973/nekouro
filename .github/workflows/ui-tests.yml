@@ -131,7 +131,7 @@ jobs:
             .
             frame-source-tests
       - name: Check macOS application
-        run: cargo check --release --locked -p zeron
+        run: cargo check --release --locked -p nekouro
       - name: Updater tests (bundle staging, install detection)
         run: cargo test --release --locked -p zeron-update
       - name: Native diff font geometry regression
@@ -211,14 +211,14 @@ jobs:
       - name: Generated Swift bindings are current
         run: |
           scripts/ios/build-core.sh iphonesimulator
-          git diff --exit-code -- apps/ios/Zeron/Core/Generated
+          git diff --exit-code -- apps/ios/NekoUro/Core/Generated
       - name: Run iOS unit tests
         working-directory: apps/ios
         run: |
-          xcodebuild -project Zeron.xcodeproj -scheme Zeron \
+          xcodebuild -project NekoUro.xcodeproj -scheme NekoUro \
             -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" \
             -resultBundlePath "$RUNNER_TEMP/ios-tests.xcresult" \
-            -only-testing:ZeronTests CODE_SIGNING_ALLOWED=NO test
+            -only-testing:NekoUroTests CODE_SIGNING_ALLOWED=NO test
       - name: Upload iOS test results
         if: always()
         uses: actions/upload-artifact@v4
