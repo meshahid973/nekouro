@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A1000000000000000000T001"
-               BuildableName = "Zeron.app"
-               BlueprintName = "Zeron"
-               ReferencedContainer = "container:Zeron.xcodeproj">
+               BuildableName = "NekoUro.app"
+               BlueprintName = "NekoUro"
+               ReferencedContainer = "container:NekoUro.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A2000000000000000000T001"
-               BuildableName = "ZeronTests.xctest"
-               BlueprintName = "ZeronTests"
-               ReferencedContainer = "container:Zeron.xcodeproj">
+               BuildableName = "NekoUroTests.xctest"
+               BlueprintName = "NekoUroTests"
+               ReferencedContainer = "container:NekoUro.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -43,9 +43,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A3000000000000000000T001"
-               BuildableName = "ZeronUITests.xctest"
-               BlueprintName = "ZeronUITests"
-               ReferencedContainer = "container:Zeron.xcodeproj">
+               BuildableName = "NekoUroUITests.xctest"
+               BlueprintName = "NekoUroUITests"
+               ReferencedContainer = "container:NekoUro.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -65,9 +65,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A1000000000000000000T001"
-            BuildableName = "Zeron.app"
-            BlueprintName = "Zeron"
-            ReferencedContainer = "container:Zeron.xcodeproj">
+            BuildableName = "NekoUro.app"
+            BlueprintName = "NekoUro"
+            ReferencedContainer = "container:NekoUro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
