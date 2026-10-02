@@ -179,7 +179,7 @@ fn default_effort_values(
 }
 
 /// Devin's `thought_level` also offers `none` ("No Thinking"), which the
-/// catalog maps to Zeron's lowest level.
+/// catalog maps to NekoUro's lowest level.
 fn devin_effort_values(
     reasoning: Option<ReasoningLevel>,
     model: Option<&str>,
@@ -644,7 +644,7 @@ pub async fn install_antigravity_release(
     }
     if !crate::code_signature::SUPPORTED {
         return Err(HarnessError::Install(format!(
-            "Antigravity {} is not pinned by this build of Zeron; update Zeron to install it",
+            "Antigravity {} is not pinned by this build of NekoUro; update NekoUro to install it",
             release.version
         )));
     }
@@ -2456,14 +2456,14 @@ fn initialize_params(harness: HarnessId) -> Value {
         // Devin otherwise exposes only the parent's run_subagent call. This
         // unlocks lifecycle tags plus every nested message, thought, and tool
         // update, all of which DevinTracker can route. Do not advertise the
-        // separate subagentControl extension: Zeron has no matching UI yet.
+        // separate subagentControl extension: NekoUro has no matching UI yet.
         capabilities["_meta"] = json!({ "cognition.ai/subagentSupport": true });
     }
     json!({
         "protocolVersion": 1,
         "clientInfo": {
             "name": "zeron",
-            "title": "Zeron",
+            "title": "NekoUro",
             "version": env!("CARGO_PKG_VERSION"),
         },
         // Declined: agents fall back to their own fs/terminal access, which
@@ -4885,11 +4885,11 @@ mod tests {
 
     #[test]
     fn windows_browser_suppression_quotes_the_executable_path() {
-        let command = windows_noop_browser(Path::new(r"C:\Program Files\Zeron\zeron.exe"))
+        let command = windows_noop_browser(Path::new(r"C:\Program Files\NekoUro\zeron.exe"))
             .expect("browser command");
         assert_eq!(
             command,
-            r#""C:\\Program Files\\Zeron\\zeron.exe" --noop-browser %s"#
+            r#""C:\\Program Files\\NekoUro\\nekouro.exe" --noop-browser %s"#
         );
         for path in [r"C:\semi;colon\zeron.exe", r"C:\percent%s\zeron.exe"] {
             assert!(windows_noop_browser(Path::new(path)).is_err());
