@@ -1,4 +1,4 @@
-//! zeron — headed by default; `zeron headless` runs the engine alone. Both start
+//! NekoUro — headed by default; `zeron headless` runs the engine alone. Both start
 //! local-only without credentials. `zeron login` and `zeron logout` select the
 //! profile used by the next engine start without mutating a live runtime.
 
@@ -13,14 +13,14 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "zeron",
+    name = "nekouro",
     version,
     about = "Multi-device controller for coding agents"
 )]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-    /// Open a Zeron conversation URL.
+    /// Open a NekoUro conversation URL.
     #[arg(value_name = "URL")]
     open_url: Option<String>,
     #[cfg(windows)]
@@ -44,7 +44,7 @@ enum Command {
     #[cfg(target_os = "linux")]
     /// Trigger an Appshot in the running headed instance (desktop shortcut fallback).
     Appshot,
-    /// Serve the Zeron MCP (Model Context Protocol) server on stdin/stdout,
+    /// Serve the NekoUro MCP (Model Context Protocol) server on stdin/stdout,
     /// proxying to the running engine's IPC. Agents use it to create, read,
     /// and message chats. Logs go to stderr; stdout is the protocol.
     Mcp,
@@ -189,7 +189,7 @@ fn main() -> anyhow::Result<()> {
     {
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
-        // `zeron mcp` owns stdout for the protocol: a single log line on it
+        // `nekouro mcp` owns stdout for the protocol: a single log line on it
         // would corrupt the JSON-RPC stream, so its diagnostics go to stderr.
         if matches!(&cli.command, Some(Command::Mcp)) {
             tracing_subscriber::registry()
@@ -370,7 +370,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
     let client = zeron_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
         .await
         .map_err(|e| {
-            anyhow::anyhow!("no engine listening on 127.0.0.1:{ipc_port} ({e}) — is zeron running?")
+            anyhow::anyhow!("no engine listening on 127.0.0.1:{ipc_port} ({e}) — is NekoUro running?")
         })?;
     let status = client
         .call(zeron_rpc::methods::SYNC_STATUS, serde_json::json!({}))
@@ -507,7 +507,7 @@ fn open_log_file(mode: &str) -> Option<std::fs::File> {
 /// Dir-parameterized body of [`open_log_file`] (unit-testable without env).
 fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> {
     std::fs::create_dir_all(dir).ok()?;
-    let path = dir.join(format!("zeron-{mode}.log"));
+    let path = dir.join(format!("nekouro-{mode}.log"));
     #[cfg(unix)]
     {
         use std::os::unix::io::AsRawFd;
@@ -524,7 +524,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
         if rc != 0 {
             // A live process owns the canonical log — leave it alone.
             return std::fs::File::create(
-                dir.join(format!("zeron-{mode}.{}.log", std::process::id())),
+                dir.join(format!("nekouro-{mode}.{}.log", std::process::id())),
             )
             .ok();
         }
@@ -533,7 +533,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
         // to rotate — the probe itself created the empty file.)
         drop(existing);
         if preexisting {
-            let _ = std::fs::rename(&path, dir.join(format!("zeron-{mode}.log.old")));
+            let _ = std::fs::rename(&path, dir.join(format!("nekouro-{mode}.log.old")));
         }
         let file = std::fs::File::create(&path).ok()?;
         unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
@@ -542,7 +542,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
     }
     #[cfg(not(unix))]
     {
-        let _ = std::fs::rename(&path, dir.join(format!("zeron-{mode}.log.old")));
+        let _ = std::fs::rename(&path, dir.join(format!("nekouro-{mode}.log.old")));
         std::fs::File::create(&path).ok()
     }
 }
@@ -586,7 +586,7 @@ fn sweep_stale_pid_logs(dir: &std::path::Path, mode: &str) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let prefix = format!("zeron-{mode}.");
+    let prefix = format!("nekouro-{mode}.");
     let week = std::time::Duration::from_secs(7 * 24 * 60 * 60);
     for entry in entries.flatten() {
         let name = entry.file_name();

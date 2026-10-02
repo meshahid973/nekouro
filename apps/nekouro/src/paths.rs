@@ -8,7 +8,7 @@ pub fn data_dir() -> PathBuf {
 }
 
 fn resolve_data_dir(mut env: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
-    if let Some(dir) = env("ZERON_DATA_DIR") {
+    if let Some(dir) = env("NEKOURO_DATA_DIR").or_else(|| env("ZERON_DATA_DIR")) {
         return PathBuf::from(dir);
     }
     #[cfg(windows)]
@@ -24,13 +24,13 @@ fn resolve_data_dir(mut env: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
                     .filter(|value| !value.is_empty())
                     .map(|home| PathBuf::from(home).join("AppData").join("Local"))
             })
-            .expect("LOCALAPPDATA and USERPROFILE not set; set ZERON_DATA_DIR");
-        local.join("Zeron")
+            .expect("LOCALAPPDATA and USERPROFILE not set; set NEKOURO_DATA_DIR");
+        local.join("NekoUro")
     }
     #[cfg(not(windows))]
     {
         let home = PathBuf::from(env("HOME").expect("HOME not set"));
-        let dir = home.join(".zeron");
+        let dir = home.join(".nekouro");
         // One-shot 0.2.0 migration: adopt the pre-rename data dir.
         if !dir.exists() {
             let old = home.join(".comet-native");
@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn explicit_data_dir_needs_no_home() {
         assert_eq!(
-            resolve(&[("ZERON_DATA_DIR", "custom data")]),
+            resolve(&[("NEKOURO_DATA_DIR", "custom data")]),
             PathBuf::from("custom data")
         );
     }
