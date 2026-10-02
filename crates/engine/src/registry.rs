@@ -907,7 +907,11 @@ mod tests {
                 HarnessId::Hermes,
                 HarnessId::Pi,
                 HarnessId::Opencode,
-                HarnessId::Antigravity
+                HarnessId::Antigravity,
+                HarnessId::OpenRouter,
+                HarnessId::Ollama,
+                HarnessId::LmStudio,
+                HarnessId::OpenAiCompatible,
             ]
         );
         assert!(registry.resolve(HarnessId::Mock).is_ok());
