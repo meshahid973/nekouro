@@ -206,7 +206,7 @@ impl OpenAiCompatibleHarness {
 impl Harness for OpenAiCompatibleHarness {
     fn id(&self) -> HarnessId { self.provider.id() }
     fn display_name(&self) -> &str { self.provider.name() }
-    fn supports_steering(&self) -> bool { true }
+    fn supports_steering(&self) -> bool { false }
     fn steering_mode(&self) -> SteeringMode { SteeringMode::TurnBoundary }
 
     fn reasoning_levels(&self) -> &[ReasoningLevel] {
@@ -228,7 +228,11 @@ impl Harness for OpenAiCompatibleHarness {
         match self.provider {
             CompatibleProvider::OpenRouter => crate::provider_config::has_api_key(self.id()),
             CompatibleProvider::Custom => crate::provider_config::custom_base_url().is_some(),
-            CompatibleProvider::Ollama | CompatibleProvider::LmStudio => true,
+            CompatibleProvider::Ollama | CompatibleProvider::LmStudio => self
+                .provider
+                .base_url()
+                .as_deref()
+                .is_some_and(local_endpoint_available),
         }
     }
 
@@ -263,6 +267,30 @@ impl Harness for OpenAiCompatibleHarness {
             rx.recv().await.map(|item| (item, rx))
         }).boxed())
     }
+}
+
+fn local_endpoint_available(raw: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(raw) else { return false };
+    let Some(host) = url.host_str() else { return false };
+    let local = host.eq_ignore_ascii_case("localhost")
+        || host == "127.0.0.1"
+        || host == "::1";
+    if !local {
+        // Explicit remote Ollama/LM Studio endpoints are configuration, not
+        // local process detection; let model discovery report reachability.
+        return true;
+    }
+    let port = url.port_or_known_default().unwrap_or(80);
+    let ip = if host == "::1" {
+        std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST)
+    } else {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+    };
+    std::net::TcpStream::connect_timeout(
+        &std::net::SocketAddr::new(ip, port),
+        Duration::from_millis(75),
+    )
+    .is_ok()
 }
 
 #[derive(Deserialize)]
@@ -450,12 +478,17 @@ async fn stream_completion(
     }
 
     let url = format!("{base_url}/chat/completions");
-    let response = send_with_retry(|| {
-        let mut request = client.post(&url).header("Accept", "text/event-stream").json(&body);
-        if let Some(key) = key { request = request.bearer_auth(key); }
-        if provider == CompatibleProvider::OpenRouter { request = request.header("X-Title", "NekoUro"); }
-        Ok(request)
-    }).await?;
+    let response = tokio::select! {
+        _ = interrupt.cancelled() => {
+            return Err(HarnessError::Protocol("interrupted".into()));
+        }
+        response = send_with_retry(|| {
+            let mut request = client.post(&url).header("Accept", "text/event-stream").json(&body);
+            if let Some(key) = key { request = request.bearer_auth(key); }
+            if provider == CompatibleProvider::OpenRouter { request = request.header("X-Title", "NekoUro"); }
+            Ok(request)
+        }) => response?,
+    };
     let status = response.status();
     if !status.is_success() {
         let body = response.bytes().await.unwrap_or_default();

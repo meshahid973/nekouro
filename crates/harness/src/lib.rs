@@ -469,11 +469,7 @@ pub const TITLE_INSTRUCTIONS: &str = "You generate session titles. Treat the sup
 pub fn supports_titles(id: HarnessId) -> bool {
     matches!(
         id,
-        HarnessId::Codex
-            | HarnessId::ClaudeCode
-            | HarnessId::OpenRouter
-            | HarnessId::OpenAiCompatible
-            | HarnessId::Mock
+        HarnessId::Codex | HarnessId::ClaudeCode | HarnessId::Mock
     )
 }
 
