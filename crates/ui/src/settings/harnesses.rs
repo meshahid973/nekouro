@@ -29,6 +29,7 @@ use zeron_proto::{HarnessId, HarnessUpdatePhase, HarnessUpdatePolicy, HarnessUpd
 
 use zeron_rpc::methods;
 
+use crate::composer::ComposerInput;
 use crate::motion;
 use crate::pickers::visible_harnesses;
 use crate::popover::{self, Loadable};
@@ -39,6 +40,33 @@ use crate::theme::Theme;
 
 #[path = "completion.rs"]
 mod completion;
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeProviderConfigView {
+    harness: HarnessId,
+    has_api_key: bool,
+    base_url: Option<String>,
+    base_url_editable: bool,
+    api_key_required: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeProviderSaveReply {
+    config: NativeProviderConfigView,
+    harnesses: Vec<HarnessDescriptor>,
+}
+
+fn is_native_provider(harness: HarnessId) -> bool {
+    matches!(
+        harness,
+        HarnessId::OpenRouter
+            | HarnessId::Ollama
+            | HarnessId::LmStudio
+            | HarnessId::OpenAiCompatible
+    )
+}
 
 /// Left inset of an expanded provider's details: the header trigger's
 /// padding, brand tile and gap, so the details start on the title's edge.
@@ -69,6 +97,15 @@ fn offers_install(harness: HarnessId, installed: bool, can_install: bool) -> boo
 }
 
 fn install_hint(harness: HarnessId, enabled: bool, can_install: bool) -> String {
+    match harness {
+        HarnessId::OpenRouter => return "Add an OpenRouter API key to enable".into(),
+        HarnessId::Ollama => return "Start Ollama's OpenAI-compatible server to enable".into(),
+        HarnessId::LmStudio => return "Start the LM Studio local server to enable".into(),
+        HarnessId::OpenAiCompatible => {
+            return "Configure an OpenAI-compatible endpoint to enable".into()
+        }
+        _ => {}
+    }
     if harness == HarnessId::Antigravity {
         return if can_install {
             "Install Antigravity to enable"
@@ -112,6 +149,10 @@ pub fn cli_name(harness: HarnessId) -> &'static str {
         HarnessId::Pi => "pi",
         HarnessId::Opencode => "opencode",
         HarnessId::Antigravity => "Antigravity",
+        HarnessId::OpenRouter => "OpenRouter API",
+        HarnessId::Ollama => "Ollama server",
+        HarnessId::LmStudio => "LM Studio server",
+        HarnessId::OpenAiCompatible => "OpenAI-compatible server",
         HarnessId::Mock => "mock",
     }
 }
@@ -182,6 +223,12 @@ pub struct HarnessesPage {
     toggle_task: Option<Task<()>>,
     installing: Option<HarnessId>,
     install_task: Option<Task<()>>,
+    native_key_input: Entity<ComposerInput>,
+    native_url_input: Entity<ComposerInput>,
+    native_configs: std::collections::HashMap<HarnessId, NativeProviderConfigView>,
+    native_status: std::collections::HashMap<HarnessId, String>,
+    native_config_task: Option<Task<()>>,
+    native_action_task: Option<Task<()>>,
 
     expanded_harness: Option<HarnessId>,
     /// The expanded provider's Accounts section — one page, retargeted as
@@ -193,6 +240,13 @@ pub struct HarnessesPage {
 
 impl HarnessesPage {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
+        let native_key_input = cx.new(|cx| {
+            ComposerInput::new("Paste API key — leave empty to keep the saved key", cx)
+                .with_single_line()
+        });
+        let native_url_input = cx.new(|cx| {
+            ComposerInput::new("https://api.example.com/v1", cx).with_single_line()
+        });
         let mut page = Self {
             state,
             scroll: widgets::PageScroll::default(),
@@ -206,6 +260,12 @@ impl HarnessesPage {
             toggle_task: None,
             installing: None,
             install_task: None,
+            native_key_input,
+            native_url_input,
+            native_configs: Default::default(),
+            native_status: Default::default(),
+            native_config_task: None,
+            native_action_task: None,
 
             expanded_harness: None,
             accounts_page: None,
@@ -220,7 +280,9 @@ impl HarnessesPage {
         if !self.harnesses.ready().is_some_and(|items| {
             items
                 .iter()
-                .any(|item| item.id == harness && descriptor_enabled(item))
+                .any(|item| {
+                    item.id == harness && (descriptor_enabled(item) || is_native_provider(item.id))
+                })
         }) {
             return;
         }
@@ -238,8 +300,313 @@ impl HarnessesPage {
                         Some(cx.new(|cx| AccountsPage::new_embedded(state, target, harness, cx)));
                 }
             }
+            if is_native_provider(harness) {
+                self.native_key_input.update(cx, |input, cx| input.set_text("", cx));
+                self.load_native_provider_config(harness, cx);
+            }
         }
         cx.notify();
+    }
+
+    fn load_native_provider_config(&mut self, harness: HarnessId, cx: &mut Context<Self>) {
+        let Some(engine) = self.state.read(cx).engine().cloned() else {
+            return;
+        };
+        let target = self.target_device.clone();
+        let params = self.with_target(serde_json::json!({ "harness": harness }));
+        self.native_status.remove(&harness);
+        self.native_config_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(methods::GET_NATIVE_PROVIDER_CONFIG, params)
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<NativeProviderConfigView>(value)
+                        .map_err(|error| error.to_string())
+                });
+            this.update(cx, |page, cx| {
+                if page.target_device != target || page.expanded_harness != Some(harness) {
+                    return;
+                }
+                match result {
+                    Ok(config) => {
+                        let url = config.base_url.clone().unwrap_or_default();
+                        page.native_configs.insert(harness, config);
+                        page.native_url_input
+                            .update(cx, |input, cx| input.set_text(url, cx));
+                    }
+                    Err(error) => page.error = Some(format!("Provider configuration — {error}")),
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn save_native_provider_config(&mut self, harness: HarnessId, cx: &mut Context<Self>) {
+        let Some(engine) = self.state.read(cx).engine().cloned() else {
+            return;
+        };
+        let key = self.native_key_input.read(cx).text().trim().to_owned();
+        let url = self.native_url_input.read(cx).text().trim().to_owned();
+        let target = self.target_device.clone();
+        let mut params = serde_json::json!({ "harness": harness });
+        if !key.is_empty() {
+            params["apiKey"] = serde_json::Value::String(key);
+        }
+        if harness == HarnessId::OpenAiCompatible {
+            params["baseUrl"] = serde_json::Value::String(url);
+        }
+        let params = self.with_target(params);
+        self.error = None;
+        self.native_status.insert(harness, "Saving…".into());
+        self.native_action_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(methods::SET_NATIVE_PROVIDER_CONFIG, params)
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<NativeProviderSaveReply>(value)
+                        .map_err(|error| error.to_string())
+                });
+            this.update(cx, |page, cx| {
+                if page.target_device != target {
+                    return;
+                }
+                match result {
+                    Ok(reply) => {
+                        let saved_harness = reply.config.harness;
+                        let url = reply.config.base_url.clone().unwrap_or_default();
+                        page.native_configs.insert(saved_harness, reply.config);
+                        page.harnesses = Loadable::Ready(reply.harnesses);
+                        page.native_key_input
+                            .update(cx, |input, cx| input.set_text("", cx));
+                        page.native_url_input
+                            .update(cx, |input, cx| input.set_text(url, cx));
+                        page.native_status.insert(saved_harness, "Saved · testing connection…".into());
+                        crate::pickers::bump_harness_catalog(cx);
+                        page.test_native_provider(saved_harness, cx);
+                    }
+                    Err(error) => {
+                        page.native_status.remove(&harness);
+                        page.error = Some(format!("Provider save failed — {error}"));
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+        cx.notify();
+    }
+
+    fn clear_native_provider_key(&mut self, harness: HarnessId, cx: &mut Context<Self>) {
+        let Some(engine) = self.state.read(cx).engine().cloned() else {
+            return;
+        };
+        let target = self.target_device.clone();
+        let params = self.with_target(serde_json::json!({
+            "harness": harness,
+            "clearApiKey": true,
+        }));
+        self.error = None;
+        self.native_action_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(methods::SET_NATIVE_PROVIDER_CONFIG, params)
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<NativeProviderSaveReply>(value)
+                        .map_err(|error| error.to_string())
+                });
+            this.update(cx, |page, cx| {
+                if page.target_device != target {
+                    return;
+                }
+                match result {
+                    Ok(reply) => {
+                        let id = reply.config.harness;
+                        page.native_configs.insert(id, reply.config);
+                        page.harnesses = Loadable::Ready(reply.harnesses);
+                        page.native_status.insert(id, "Saved key removed".into());
+                        crate::pickers::bump_harness_catalog(cx);
+                    }
+                    Err(error) => page.error = Some(format!("Could not remove key — {error}")),
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn test_native_provider(&mut self, harness: HarnessId, cx: &mut Context<Self>) {
+        let Some(engine) = self.state.read(cx).engine().cloned() else {
+            return;
+        };
+        let target = self.target_device.clone();
+        let model_params = self.with_target(serde_json::json!({
+            "harness": harness,
+            "force": true,
+        }));
+        let list_params = self.with_target(serde_json::json!({}));
+        self.native_status.insert(harness, "Testing connection…".into());
+        self.native_action_task = Some(cx.spawn(async move |this, cx| {
+            let models = engine.client().call(methods::LIST_MODELS, model_params).await;
+            let harnesses = engine.client().call(methods::LIST_HARNESSES, list_params).await;
+            this.update(cx, |page, cx| {
+                if page.target_device != target {
+                    return;
+                }
+                match models {
+                    Ok(value) => {
+                        match serde_json::from_value::<Vec<zeron_proto::Model>>(value) {
+                            Ok(models) if !models.is_empty() => {
+                                page.native_status.insert(
+                                    harness,
+                                    format!("Connected · {} models available", models.len()),
+                                );
+                            }
+                            Ok(_) => {
+                                page.native_status.insert(harness, "Connected · no models reported".into());
+                            }
+                            Err(error) => {
+                                page.native_status.insert(
+                                    harness,
+                                    format!("Connection response invalid — {error}"),
+                                );
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        page.native_status.insert(harness, format!("Connection failed — {error}"));
+                    }
+                }
+                if let Ok(value) = harnesses
+                    && let Ok(list) = serde_json::from_value::<Vec<HarnessDescriptor>>(value)
+                {
+                    page.harnesses = Loadable::Ready(list);
+                }
+                crate::pickers::bump_harness_catalog(cx);
+                cx.notify();
+            })
+            .ok();
+        }));
+        cx.notify();
+    }
+
+    fn render_native_provider_for(
+        &self,
+        harness: HarnessId,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if !is_native_provider(harness) {
+            return None;
+        }
+        let config = self.native_configs.get(&harness);
+        let has_key = config.is_some_and(|config| config.has_api_key);
+        let api_required = config.is_some_and(|config| config.api_key_required);
+        let editable_url = config.is_some_and(|config| config.base_url_editable);
+        let endpoint = config
+            .and_then(|config| config.base_url.clone())
+            .unwrap_or_else(|| "Loading endpoint…".into());
+        let status = self.native_status.get(&harness).cloned();
+
+        let mut section = div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .child(widgets::details_label(theme, "Connection"));
+
+        if editable_url {
+            section = section
+                .child(widgets::row_title(theme, "Base URL"))
+                .child(
+                    popover::dialog_field(self.native_url_input.clone().into_any_element())
+                        .font_family(theme.font_mono.clone())
+                        .text_size(crate::typography::ui_rems(12.5)),
+                );
+        } else {
+            section = section.child(
+                widgets::meta_line(
+                    theme,
+                    vec![
+                        div().child("Endpoint").into_any_element(),
+                        div().font_family(theme.font_mono.clone()).child(endpoint).into_any_element(),
+                    ],
+                ),
+            );
+        }
+
+        if matches!(harness, HarnessId::OpenRouter | HarnessId::OpenAiCompatible) {
+            section = section
+                .child(widgets::row_title(
+                    theme,
+                    if api_required { "API key" } else { "API key (optional)" },
+                ))
+                .child(
+                    popover::dialog_field(self.native_key_input.clone().into_any_element())
+                        .font_family(theme.font_mono.clone())
+                        .text_size(crate::typography::ui_rems(12.5)),
+                )
+                .child(
+                    div()
+                        .text_size(crate::typography::ui_rems(11.5))
+                        .text_color(theme.text_muted)
+                        .child(if has_key {
+                            "A key is saved on this device. It is never read back into the UI."
+                        } else if api_required {
+                            "Paste a key to enable this provider. The key is stored device-locally."
+                        } else {
+                            "Leave blank for endpoints that do not require authentication."
+                        }),
+                );
+        }
+
+        let actions = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(8.0))
+            .child(
+                widgets::text_action(theme, widgets::ActionTone::Filled, "Save")
+                    .id(("native-provider-save", format!("{harness:?}")))
+                    .on_click(cx.listener(move |page, _, _, cx| {
+                        page.save_native_provider_config(harness, cx)
+                    })),
+            )
+            .child(
+                widgets::text_action(theme, widgets::ActionTone::Quiet, "Test connection")
+                    .id(("native-provider-test", format!("{harness:?}")))
+                    .on_click(cx.listener(move |page, _, _, cx| {
+                        page.test_native_provider(harness, cx)
+                    })),
+            )
+            .when(has_key, |actions| {
+                actions.child(
+                    widgets::text_action(theme, widgets::ActionTone::Quiet, "Remove key")
+                        .id(("native-provider-clear-key", format!("{harness:?}")))
+                        .on_click(cx.listener(move |page, _, _, cx| {
+                            page.clear_native_provider_key(harness, cx)
+                        })),
+                )
+            });
+        section = section.child(actions);
+        if let Some(status) = status {
+            section = section.child(
+                div()
+                    .text_size(crate::typography::ui_rems(11.5))
+                    .text_color(if status.starts_with("Connected") {
+                        theme.success
+                    } else {
+                        theme.text_muted
+                    })
+                    .child(status),
+            );
+        }
+        Some(section.into_any_element())
     }
 
     fn render_agent_details(
@@ -262,6 +629,7 @@ impl HarnessesPage {
             .flex()
             .flex_col()
             .gap(px(20.0))
+            .children(self.render_native_provider_for(harness, theme, cx))
             .child(self.render_completion_for(harness, theme, cx))
             .children(self.render_updates_for(harness, theme, cx))
             .when_some(accounts, |details, accounts| details.child(accounts));
@@ -393,6 +761,12 @@ impl HarnessesPage {
         self.installing = None;
         self.install_task = None;
         self.policy_selects.clear();
+        self.native_configs.clear();
+        self.native_status.clear();
+        self.native_config_task = None;
+        self.native_action_task = None;
+        self.native_key_input.update(cx, |input, cx| input.set_text("", cx));
+        self.native_url_input.update(cx, |input, cx| input.set_text("", cx));
         self.target_device = target;
         if let Some(accounts) = &self.accounts_page {
             accounts.update(cx, |page, cx| {
@@ -813,6 +1187,7 @@ impl HarnessesPage {
                 // user doesn't want must not be stuck on because it isn't
                 // installed); turning ON still does.
                 let interactive = !last_enabled && (enabled || installed);
+                let configurable = is_native_provider(harness);
                 let (icon_path, tint) = crate::pickers::harness_brand_icon(harness);
 
                 let update = match &self.updates {
@@ -862,13 +1237,31 @@ impl HarnessesPage {
                     HarnessId::Cursor => meta.push(
                         div()
                             .text_color(theme.text_muted.opacity(0.65))
-                            .child("Cursor SDK · Managed by Zeron")
+                            .child("Cursor SDK · Managed by NekoUro")
                             .into_any_element(),
                     ),
                     HarnessId::Pi => meta.push(
                         div()
                             .text_color(theme.text_muted.opacity(0.65))
                             .child("Pi RPC · Native connection")
+                            .into_any_element(),
+                    ),
+                    HarnessId::OpenRouter => meta.push(
+                        div()
+                            .text_color(theme.text_muted.opacity(0.65))
+                            .child("Native HTTPS · OpenAI-compatible")
+                            .into_any_element(),
+                    ),
+                    HarnessId::Ollama | HarnessId::LmStudio => meta.push(
+                        div()
+                            .text_color(theme.text_muted.opacity(0.65))
+                            .child("Local HTTP · Native connection")
+                            .into_any_element(),
+                    ),
+                    HarnessId::OpenAiCompatible => meta.push(
+                        div()
+                            .text_color(theme.text_muted.opacity(0.65))
+                            .child("Custom endpoint · Native connection")
                             .into_any_element(),
                     ),
                     _ => {}
@@ -888,7 +1281,7 @@ impl HarnessesPage {
                             .size(px(16.0))
                             .text_color(tint.unwrap_or(theme.text_muted)),
                     );
-                let expanded = enabled && self.expanded_harness == Some(harness);
+                let expanded = (enabled || configurable) && self.expanded_harness == Some(harness);
                 // The row's one update action sits inside the trigger, before
                 // the chevron, so it appearing never moves the chevron; the
                 // update policy lives in the expanded details.
@@ -943,7 +1336,7 @@ impl HarnessesPage {
                 });
                 let header = widgets::card_row(&theme, ix == 0)
                     .id(("harness-row", ix))
-                    .when(!installed && self.installing != Some(harness), |el| {
+                    .when(!installed && !configurable && self.installing != Some(harness), |el| {
                         el.opacity(0.55)
                     })
                     .child(
@@ -959,7 +1352,7 @@ impl HarnessesPage {
                             .flex_row()
                             .items_center()
                             .gap(px(12.0))
-                            .when(enabled, |el| {
+                            .when(enabled || configurable, |el| {
                                 el.role(gpui::Role::Button)
                                     .aria_label(format!("{} preferences", descriptor.name))
                                     .aria_expanded(expanded)
@@ -999,7 +1392,7 @@ impl HarnessesPage {
                                     }),
                             )
                             .children(update_action)
-                            .when(enabled, |el| {
+                            .when(enabled || configurable, |el| {
                                 el.child(
                                     crate::icons::icon(if expanded {
                                         crate::icons::ALT_ARROW_DOWN

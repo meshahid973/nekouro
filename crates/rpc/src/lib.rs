@@ -37,6 +37,11 @@ pub mod methods {
     pub const LIST_HARNESSES: &str = "ListHarnesses";
     pub const CANCEL_INSTALL: &str = "CancelInstall";
     pub const INSTALL_HARNESS: &str = "InstallHarness";
+    /// Read device-local native HTTP provider configuration. API keys are
+    /// represented only by a boolean and are never returned over RPC.
+    pub const GET_NATIVE_PROVIDER_CONFIG: &str = "GetNativeProviderConfig";
+    /// Persist device-local native HTTP provider configuration.
+    pub const SET_NATIVE_PROVIDER_CONFIG: &str = "SetNativeProviderConfig";
     /// Flip a harness's enablement on the target device (Settings → Providers);
     /// replies with the device's fresh `ListHarnesses` catalog.
     pub const GET_TITLE_SETTINGS: &str = "GetTitleSettings";

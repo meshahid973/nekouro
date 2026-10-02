@@ -3103,6 +3103,10 @@ fn harness_slug(harness: HarnessId) -> &'static str {
         HarnessId::Pi => "pi",
         HarnessId::Opencode => "opencode",
         HarnessId::Antigravity => "antigravity",
+        HarnessId::OpenRouter => "openrouter",
+        HarnessId::Ollama => "ollama",
+        HarnessId::LmStudio => "lm-studio",
+        HarnessId::OpenAiCompatible => "openai-compatible",
         HarnessId::Mock => "mock",
     }
 }

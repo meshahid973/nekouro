@@ -23,6 +23,14 @@ pub enum HarnessId {
     /// google's antigravity agent over acp (`agy_acp_server`, installed from
     /// its pinned release archive).
     Antigravity,
+    /// OpenRouter's OpenAI-compatible cloud API, driven directly over HTTPS/SSE.
+    OpenRouter,
+    /// Local Ollama OpenAI-compatible server.
+    Ollama,
+    /// Local LM Studio OpenAI-compatible server.
+    LmStudio,
+    /// User-configured OpenAI-compatible HTTP endpoint.
+    OpenAiCompatible,
     /// Test harness; never shown in production pickers.
     Mock,
 }

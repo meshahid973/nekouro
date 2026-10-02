@@ -52,7 +52,7 @@ fn methods(id: HarnessId, platform: Platform) -> Vec<Method> {
     use Method::*;
     let windows = platform == Platform::Windows;
     match id {
-        Mock => vec![],
+        Mock | OpenRouter | Ollama | LmStudio | OpenAiCompatible => vec![],
         Antigravity => vec![Archive],
         ClaudeCode if windows => vec![PowerShell("irm https://claude.ai/install.ps1 | iex")],
         ClaudeCode => vec![Shell(
@@ -158,7 +158,7 @@ pub fn manual_command(id: HarnessId) -> Option<&'static str> {
         Grok => "npm install -g @xai-official/grok",
         Hermes => "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
         Devin => "curl -fsSL https://cli.devin.ai/install.sh | bash",
-        Antigravity | Mock => return None,
+        Antigravity | OpenRouter | Ollama | LmStudio | OpenAiCompatible | Mock => return None,
     })
 }
 
@@ -173,7 +173,11 @@ fn cli_and_dir(id: HarnessId) -> (&'static str, &'static str) {
         Grok => ("grok", "~/.grok/bin or the npm global bin"),
         Hermes => ("hermes", "~/.local/bin or ~/.hermes/bin"),
         Devin => ("devin", "~/.local/bin"),
-        Antigravity => ("agy_acp_server", "~/.zeron/adapters"),
+        Antigravity => ("agy_acp_server", "~/.nekouro/adapters"),
+        OpenRouter => ("OpenRouter", "Settings → Providers"),
+        Ollama => ("Ollama", "the configured local endpoint"),
+        LmStudio => ("LM Studio", "the configured local endpoint"),
+        OpenAiCompatible => ("OpenAI-compatible endpoint", "Settings → Providers"),
         Mock => ("mock", "PATH"),
     }
 }
@@ -190,6 +194,10 @@ pub fn installed(id: HarnessId) -> bool {
         Hermes => crate::AcpHarness::hermes().installed(),
         Devin => crate::AcpHarness::devin().installed(),
         Antigravity => crate::AcpHarness::antigravity().installed(),
+        OpenRouter => crate::OpenAiCompatibleHarness::openrouter().installed(),
+        Ollama => crate::OpenAiCompatibleHarness::ollama().installed(),
+        LmStudio => crate::OpenAiCompatibleHarness::lm_studio().installed(),
+        OpenAiCompatible => crate::OpenAiCompatibleHarness::custom().installed(),
         Mock => false,
     }
 }
@@ -209,7 +217,7 @@ fn post_install(id: HarnessId) -> Result<(), HarnessError> {
     }
     let (cli, dir) = cli_and_dir(id);
     Err(HarnessError::Install(format!(
-        "installer finished but `{cli}` was not found on PATH; open a new terminal or add {dir} to PATH"
+        "installer finished, but NekoUro could not discover `{cli}` in the current or persisted user PATH; expected it under {dir}"
     )))
 }
 
@@ -309,8 +317,11 @@ pub async fn install_harness(id: HarnessId, cancel: CancellationToken) -> Result
     } else {
         run(command(method)?, cancel, DEADLINE).await
     };
-    invalidate_versions(id);
     result?;
+    // Native/vendor installers can mutate Windows' persisted User PATH without
+    // changing this already-running GUI process. Refresh it before discovery.
+    crate::executable::refresh_environment_paths();
+    invalidate_versions(id);
     post_install(id)
 }
 
@@ -324,8 +335,11 @@ pub async fn install_with_command(
     let mut cmd = shell_command(script)?;
     configure(&mut cmd);
     let result = run(cmd, cancel, DEADLINE).await;
-    invalidate_versions(id);
     result?;
+    // Native/vendor installers can mutate Windows' persisted User PATH without
+    // changing this already-running GUI process. Refresh it before discovery.
+    crate::executable::refresh_environment_paths();
+    invalidate_versions(id);
     post_install(id)
 }
 

@@ -209,6 +209,17 @@ impl Drop for CodexStageCleanup {
     }
 }
 
+fn tracks_cli_updates(id: HarnessId) -> bool {
+    !matches!(
+        id,
+        HarnessId::Mock
+            | HarnessId::OpenRouter
+            | HarnessId::Ollama
+            | HarnessId::LmStudio
+            | HarnessId::OpenAiCompatible
+    )
+}
+
 fn provider(id: HarnessId) -> ProviderSpec {
     match id {
         HarnessId::ClaudeCode => ProviderSpec {
@@ -272,7 +283,11 @@ fn provider(id: HarnessId) -> ProviderSpec {
             update_args: None,
             manual_command: "Update the configured Antigravity ACP server",
         },
-        HarnessId::Mock => ProviderSpec {
+        HarnessId::Mock
+        | HarnessId::OpenRouter
+        | HarnessId::Ollama
+        | HarnessId::LmStudio
+        | HarnessId::OpenAiCompatible => ProviderSpec {
             version_args: &["--version"],
             latest: LatestSource::Manual,
             update_args: None,
@@ -413,7 +428,7 @@ impl HarnessUpdateCoordinator {
         let order: Vec<_> = registry
             .descriptors()
             .into_iter()
-            .filter(|descriptor| descriptor.id != HarnessId::Mock)
+            .filter(|descriptor| tracks_cli_updates(descriptor.id))
             .map(|descriptor| descriptor.id)
             .collect();
         let enabled = registry.enabled_set();
@@ -521,7 +536,13 @@ impl HarnessUpdateCoordinator {
     }
 
     pub async fn check_all(&self) -> Vec<HarnessUpdateStatus> {
-        let enabled = self.inner.registry.enabled_set();
+        let enabled: Vec<_> = self
+            .inner
+            .registry
+            .enabled_set()
+            .into_iter()
+            .filter(|id| self.inner.order.contains(id))
+            .collect();
         // Disabled rows remain visible in Settings but never spawn a probe.
         for id in &self.inner.order {
             let policy = self.policy(*id);
