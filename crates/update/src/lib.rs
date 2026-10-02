@@ -1,4 +1,4 @@
-//! zeron-update — release checking and self-update, shared by the engine (the
+//! nekouro-update — release checking and self-update, shared by the engine (the
 //! background checker + `ApplyUpdate`), the CLI (`zeron update`), and the UI
 //! (its own report-only checker, the "Check for Updates…" menu item, the
 //! sidebar update strip, and the desktop install paths).
@@ -10,7 +10,7 @@
 //! releases published before the manifest existed.
 //!
 //! Install kinds and their update paths:
-//! - **Managed** (`~/.zeron/app/<ver>` + `current` symlink — the curl|sh
+//! - **Managed** (`~/.nekouro/app/<ver>` + `current` symlink — the curl|sh
 //!   installer and the Linux tarball's `install.sh`): download the headless
 //!   tarball into a new versioned dir, flip the symlink, then restart the
 //!   service (daemon) or relaunch (desktop). Same flow the installer script
@@ -18,7 +18,7 @@
 //! - **MacApp** (running out of an app bundle): download the app tarball, swap the
 //!   bundle directory, relaunch. Driven by the UI.
 //! - **WindowsPortable** (the Windows installer or portable zip — both carry
-//!   `zeron-update.json`): swap the executable in place. Driven by the UI.
+//!   `nekouro-update.json`): swap the executable in place. Driven by the UI.
 //! - **Unmanaged** (source builds, hand-copied binaries): report only — the
 //!   UI's advisory strip links to [`RELEASES_PAGE`].
 //!
@@ -133,16 +133,16 @@ fn require_mac_app_update_platform() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `zeron-<ver>-<os>-<arch>.tar.gz` — the headless/CLI tarball (Linux CI builds).
+/// `nekouro-<ver>-<os>-<arch>.tar.gz` — the headless/CLI tarball (Linux CI builds).
 pub fn headless_artifact(version: &str) -> String {
     let (os, arch) = platform_key();
-    format!("zeron-{version}-{os}-{arch}.tar.gz")
+    format!("nekouro-{version}-{os}-{arch}.tar.gz")
 }
 
-/// `zeron-<ver>-macos-<arch>-app.tar.gz` — the macOS app update payload.
+/// `nekouro-<ver>-macos-<arch>-app.tar.gz` — the macOS app update payload.
 pub fn mac_app_artifact(version: &str) -> String {
     let (_, arch) = platform_key();
-    format!("zeron-{version}-macos-{arch}-app.tar.gz")
+    format!("nekouro-{version}-macos-{arch}-app.tar.gz")
 }
 
 fn parse_version(v: &str) -> Option<Vec<u64>> {
@@ -282,7 +282,7 @@ fn http_client_with_timeouts(connect: Duration, read: Duration) -> anyhow::Resul
         // Inactivity timeout, not a total download cap: slow progressing
         // updates remain viable on constrained links.
         .read_timeout(read)
-        .user_agent(concat!("zeron/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("nekouro/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 10 {
                 return attempt.error("too many update redirects");
@@ -317,11 +317,11 @@ fn validate_release_override(value: &str) -> anyhow::Result<String> {
 /// The project's GitHub releases page — the advisory update strip opens this
 /// for unmanaged installs (source builds, hand-copied binaries), where no
 /// updater flow exists to drive.
-pub const RELEASES_PAGE: &str = "https://github.com/zeronsh/zeron/releases";
+pub const RELEASES_PAGE: &str = "https://github.com/meshahid973/nekouro/releases";
 
 /// The newest release's page — the download destination offered when this
 /// installation cannot replace itself.
-pub const LATEST_RELEASE_PAGE: &str = "https://github.com/zeronsh/zeron/releases/latest";
+pub const LATEST_RELEASE_PAGE: &str = "https://github.com/meshahid973/nekouro/releases/latest";
 
 fn release_base(edge_url: &str) -> anyhow::Result<String> {
     if let Ok(url) = std::env::var("ZERON_RELEASES_URL")
@@ -343,7 +343,7 @@ fn release_base(edge_url: &str) -> anyhow::Result<String> {
 /// How this binary was installed — decides the update path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallKind {
-    /// `~/.zeron/app/<ver>/zeron` behind the `current` symlink
+    /// `~/.nekouro/app/<ver>/zeron` behind the `current` symlink
     /// (curl|sh installer, the Linux tarball's `install.sh`, or a previous
     /// `zeron update`).
     Managed { app_root: PathBuf },
@@ -373,12 +373,12 @@ impl std::fmt::Display for UpdateBlocker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Translocated | Self::DiskImage => f.write_str(
-                "Zeron is running from a temporary, read-only location. Move Zeron to your \
+                "NekoUro is running from a temporary, read-only location. Move NekoUro to your \
                  Applications folder and reopen it to turn on updates.",
             ),
             Self::NotWritable(dir) => write!(
                 f,
-                "Zeron doesn't have permission to replace itself in {}.",
+                "NekoUro doesn't have permission to replace itself in {}.",
                 dir.display()
             ),
         }
@@ -491,7 +491,7 @@ fn mac_bundle_blocker(bundle: &Path, writable: impl Fn(&Path) -> bool) -> Option
 /// Probe by creating (and removing) a file: permission bits alone miss
 /// read-only mounts, ACLs, and sandboxed locations.
 fn dir_writable(dir: &Path) -> bool {
-    let probe = dir.join(format!(".zeron-write-probe-{}", std::process::id()));
+    let probe = dir.join(format!(".nekouro-write-probe-{}", std::process::id()));
     match std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -809,7 +809,7 @@ pub fn restart_service() -> anyhow::Result<()> {
 // macOS app-bundle installs — the desktop path
 // ---------------------------------------------------------------------------
 
-/// Download + unpack the app tarball into `{data_dir}/updates/<ver>/Zeron.app`
+/// Download + unpack the app tarball into `{data_dir}/updates/<ver>/NekoUro.app`
 /// (idempotent). The bundle is unpacked beside its final name and renamed in
 /// only after its binary answers with the expected version, so an interrupted
 /// unpack can never be mistaken for a staged update. Returns the staged bundle.
@@ -827,7 +827,7 @@ pub async fn stage_mac_app(
     );
     let updates = data_dir.join("updates");
     let dir = updates.join(version);
-    let staged = dir.join("Zeron.app");
+    let staged = dir.join("NekoUro.app");
     let staged_binary = staged.join("Contents/MacOS/zeron");
     if staged_binary.exists() && verify_staged_binary(&staged_binary, version).await.is_ok() {
         return Ok(staged);
@@ -849,13 +849,13 @@ pub async fn stage_mac_app(
             &unpack.to_string_lossy(),
         ],
     )
-    .map(|()| unpack.join("Zeron.app"));
+    .map(|()| unpack.join("NekoUro.app"));
     std::fs::remove_file(&tarball).ok();
     let unpacked = unpacked?;
     let unpacked_binary = unpacked.join("Contents/MacOS/zeron");
     if !unpacked_binary.exists() {
         let _ = std::fs::remove_dir_all(&dir);
-        bail!("app tarball {file} did not contain Zeron.app");
+        bail!("app tarball {file} did not contain NekoUro.app");
     }
     if let Err(err) = verify_staged_binary(&unpacked_binary, version).await {
         let _ = std::fs::remove_dir_all(&dir);
@@ -931,7 +931,7 @@ if [ -n "$3" ]; then exec "$2" "$3"; else exec "$2"; fi"#;
         command
             .arg("-c")
             .arg(script)
-            .arg("zeron-relaunch")
+            .arg("nekouro-relaunch")
             .arg(&pid)
             .arg(program)
             .arg(argument)
@@ -1624,22 +1624,22 @@ mod tests {
     fn install_kind_detection() {
         assert_eq!(
             detect_install_from_for_os(
-                Path::new("/home/u/.zeron/app/0.1.1/zeron"),
+                Path::new("/home/u/.nekouro/app/0.1.1/zeron"),
                 Some(Path::new("/home/u")),
                 "linux",
             ),
             InstallKind::Managed {
-                app_root: PathBuf::from("/home/u/.zeron/app")
+                app_root: PathBuf::from("/home/u/.nekouro/app")
             }
         );
         assert_eq!(
             detect_install_from_for_os(
-                Path::new("/Applications/Zeron.app/Contents/MacOS/zeron"),
+                Path::new("/Applications/NekoUro.app/Contents/MacOS/zeron"),
                 Some(Path::new("/Users/u")),
                 "macos",
             ),
             InstallKind::MacApp {
-                bundle: PathBuf::from("/Applications/Zeron.app")
+                bundle: PathBuf::from("/Applications/NekoUro.app")
             }
         );
         // A path merely containing `.app` without the bundle layout is not a bundle.
@@ -1660,10 +1660,10 @@ mod tests {
     #[test]
     fn artifact_names_match_packaging() {
         let (os, arch) = platform_key();
-        assert!(headless_artifact("0.2.0").starts_with("zeron-0.2.0-"));
+        assert!(headless_artifact("0.2.0").starts_with("nekouro-0.2.0-"));
         assert_eq!(
             headless_artifact("0.2.0"),
-            format!("zeron-0.2.0-{os}-{arch}.tar.gz")
+            format!("nekouro-0.2.0-{os}-{arch}.tar.gz")
         );
         assert!(mac_app_artifact("0.2.0").ends_with("-app.tar.gz"));
     }
@@ -1716,7 +1716,7 @@ mod tests {
                 .contains("not supported on windows")
         );
         assert!(
-            apply_mac_app(&data_dir.join("Zeron.app"), &data_dir.join("Installed.app"))
+            apply_mac_app(&data_dir.join("NekoUro.app"), &data_dir.join("Installed.app"))
                 .unwrap_err()
                 .to_string()
                 .contains("not supported on windows")
@@ -1732,12 +1732,12 @@ mod tests {
     #[test]
     fn manifest_parses_with_and_without_files() {
         let full: Manifest = serde_json::from_str(
-            r#"{"version":"0.1.1","files":{"zeron-0.1.1-linux-x86_64.tar.gz":{"sha256":"abc"}}}"#,
+            r#"{"version":"0.1.1","files":{"nekouro-0.1.1-linux-x86_64.tar.gz":{"sha256":"abc"}}}"#,
         )
         .unwrap();
         assert_eq!(full.version, "0.1.1");
         assert_eq!(
-            full.files["zeron-0.1.1-linux-x86_64.tar.gz"]
+            full.files["nekouro-0.1.1-linux-x86_64.tar.gz"]
                 .sha256
                 .as_deref(),
             Some("abc")
@@ -1865,7 +1865,7 @@ mod tests {
         apply_headless(&app_root, "0.4.0").unwrap();
         assert_eq!(installed_version(&managed).as_deref(), Some("0.4.0"));
 
-        let bundle = tmp.path().join("Zeron.app");
+        let bundle = tmp.path().join("NekoUro.app");
         std::fs::create_dir_all(bundle.join("Contents")).unwrap();
         std::fs::write(
             bundle.join("Contents/Info.plist"),
@@ -1884,27 +1884,27 @@ mod tests {
         let writable = |_: &Path| true;
         let read_only = |_: &Path| false;
         assert_eq!(
-            mac_bundle_blocker(Path::new("/Applications/Zeron.app"), writable),
+            mac_bundle_blocker(Path::new("/Applications/NekoUro.app"), writable),
             None
         );
         assert_eq!(
             mac_bundle_blocker(
-                Path::new("/private/var/folders/x/T/AppTranslocation/ABC/d/Zeron.app"),
+                Path::new("/private/var/folders/x/T/AppTranslocation/ABC/d/NekoUro.app"),
                 writable
             ),
             Some(UpdateBlocker::Translocated)
         );
         assert_eq!(
-            mac_bundle_blocker(Path::new("/Volumes/Zeron/Zeron.app"), read_only),
+            mac_bundle_blocker(Path::new("/Volumes/NekoUro/NekoUro.app"), read_only),
             Some(UpdateBlocker::DiskImage)
         );
         // An external drive the user can write to updates in place.
         assert_eq!(
-            mac_bundle_blocker(Path::new("/Volumes/Work/Zeron.app"), writable),
+            mac_bundle_blocker(Path::new("/Volumes/Work/NekoUro.app"), writable),
             None
         );
         assert_eq!(
-            mac_bundle_blocker(Path::new("/Applications/Zeron.app"), read_only),
+            mac_bundle_blocker(Path::new("/Applications/NekoUro.app"), read_only),
             Some(UpdateBlocker::NotWritable(PathBuf::from("/Applications")))
         );
     }
@@ -1961,7 +1961,7 @@ mod tests {
     #[cfg(unix)]
     fn fake_headless_tarball(dir: &Path, reported: &str) -> Vec<u8> {
         use std::os::unix::fs::PermissionsExt as _;
-        let root = dir.join("zeron-pkg");
+        let root = dir.join("nekouro-pkg");
         std::fs::create_dir_all(&root).unwrap();
         let binary = root.join("zeron");
         std::fs::write(&binary, format!("#!/bin/sh\necho \"zeron {reported}\"\n")).unwrap();
@@ -1974,7 +1974,7 @@ mod tests {
                 &tarball.to_string_lossy(),
                 "-C",
                 &dir.to_string_lossy(),
-                "zeron-pkg",
+                "nekouro-pkg",
             ],
         )
         .unwrap();
