@@ -1,7 +1,7 @@
 //! The tool catalog and its dispatch.
 //!
 //! Every tool is a thin composition of engine reads/writes from
-//! [`Zeron`]; the only logic that lives here is argument resolution (chat
+//! [`NekoUro`]; the only logic that lives here is argument resolution (chat
 //! by prefix, project by path), sender attribution, and the "how do I
 //! deliver a message to a chat in this state" choice the composer makes
 //! for humans.
@@ -18,7 +18,7 @@ use zeron_proto::{
 };
 
 use crate::transcript::{RenderOptions, RenderedMessage, render_entries};
-use crate::zeron::{HarnessInfo, TurnOutcome, Zeron, session_for, short};
+use crate::nekouro::{HarnessInfo, NekoUro, TurnOutcome, session_for, short};
 
 /// Default and ceiling for the blocking waits.
 const MAX_BATCH: usize = 32;
@@ -37,7 +37,7 @@ pub struct ToolDef {
 }
 
 pub struct Tools {
-    zeron: Arc<Zeron>,
+    nekouro: Arc<NekoUro>,
 }
 
 fn chat_key_schema(extra: Value) -> Value {
@@ -388,8 +388,8 @@ fn last_pending_input(messages: &[RenderedMessage]) -> Option<Value> {
 // ---- dispatch ----------------------------------------------------------------
 
 impl Tools {
-    pub fn new(zeron: Arc<Zeron>) -> Self {
-        Self { zeron }
+    pub fn new(nekouro: Arc<NekoUro>) -> Self {
+        Self { nekouro }
     }
 
     pub fn list(&self) -> Vec<ToolDef> {
@@ -458,14 +458,14 @@ impl Tools {
     }
 
     async fn whoami(&self) -> anyhow::Result<Value> {
-        let origin = self.zeron.origin().clone();
-        let local_device = self.zeron.local_device_id().await?;
-        let engine = self.zeron.engine_info().await.unwrap_or(Value::Null);
+        let origin = self.nekouro.origin().clone();
+        let local_device = self.nekouro.local_device_id().await?;
+        let engine = self.nekouro.engine_info().await.unwrap_or(Value::Null);
         let chat = match origin.chat_id.as_deref() {
-            Some(id) => match self.zeron.resolve_chat(id).await {
+            Some(id) => match self.nekouro.resolve_chat(id).await {
                 Ok(chat) => {
                     let (spaces, sessions) =
-                        tokio::try_join!(self.zeron.spaces(), self.zeron.sessions())?;
+                        tokio::try_join!(self.nekouro.spaces(), self.nekouro.sessions())?;
                     summarize_chat(&chat, &spaces, &sessions)
                 }
                 Err(_) => json!({ "id": id }),
@@ -487,7 +487,7 @@ impl Tools {
 
     async fn list_devices(&self) -> anyhow::Result<Value> {
         let (devices, local) =
-            tokio::try_join!(self.zeron.devices(), self.zeron.local_device_id())?;
+            tokio::try_join!(self.nekouro.devices(), self.nekouro.local_device_id())?;
         Ok(json!({
             "devices": devices.iter().map(|d| json!({
                 "id": d.id,
@@ -501,7 +501,7 @@ impl Tools {
     }
 
     async fn list_projects(&self) -> anyhow::Result<Value> {
-        let (spaces, devices) = tokio::try_join!(self.zeron.spaces(), self.zeron.devices())?;
+        let (spaces, devices) = tokio::try_join!(self.nekouro.spaces(), self.nekouro.devices())?;
         let device_name = |id: &str| devices.iter().find(|d| d.id == id).map(|d| d.name.clone());
         Ok(json!({
             "projects": spaces.iter().map(|s| json!({
@@ -516,7 +516,7 @@ impl Tools {
     }
 
     async fn list_harnesses(&self) -> anyhow::Result<Value> {
-        let harnesses = self.zeron.harnesses().await?;
+        let harnesses = self.nekouro.harnesses().await?;
         Ok(json!({
             "harnesses": harnesses.iter().map(|h| json!({
                 "id": h.id,
@@ -532,7 +532,7 @@ impl Tools {
     async fn list_models(&self, args: ListModelsArgs) -> anyhow::Result<Value> {
         let harness: HarnessId =
             parse_enum("harness", &args.harness).map_err(anyhow::Error::msg)?;
-        let models = self.zeron.models(harness).await?;
+        let models = self.nekouro.models(harness).await?;
         Ok(json!({
             "harness": harness,
             "models": models.iter().map(|m| json!({
@@ -546,23 +546,23 @@ impl Tools {
 
     async fn list_chats(&self, args: ListChatsArgs) -> anyhow::Result<Value> {
         let (mut chats, spaces, sessions) = tokio::try_join!(
-            self.zeron.chats(),
-            self.zeron.spaces(),
-            self.zeron.sessions()
+            self.nekouro.chats(),
+            self.nekouro.spaces(),
+            self.nekouro.sessions()
         )?;
         if let Some(project) = args.project.as_deref() {
-            let space = self.zeron.resolve_space(project).await?;
+            let space = self.nekouro.resolve_space(project).await?;
             chats.retain(|c| c.space_id.as_deref() == Some(space.id.as_str()));
         }
         if args.device.is_some() {
-            let device = self.zeron.resolve_device_id(args.device.as_deref()).await?;
+            let device = self.nekouro.resolve_device_id(args.device.as_deref()).await?;
             chats.retain(|c| c.device_id == device);
         }
         if !args.include_archived {
             chats.retain(|c| !c.archived);
         }
         if let Some(parent) = args.parent.as_deref() {
-            let parent = self.zeron.resolve_chat(parent).await?;
+            let parent = self.nekouro.resolve_chat(parent).await?;
             chats.retain(|c| c.parent_chat_id.as_deref() == Some(parent.id.as_str()));
         }
         chats.sort_by(|a, b| {
@@ -581,11 +581,11 @@ impl Tools {
     }
 
     async fn get_chat(&self, args: ChatArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let (spaces, sessions, entries) = tokio::try_join!(
-            self.zeron.spaces(),
-            self.zeron.sessions(),
-            self.zeron.transcript(&chat.id)
+            self.nekouro.spaces(),
+            self.nekouro.sessions(),
+            self.nekouro.transcript(&chat.id)
         )?;
         let rendered = render_entries(&entries, RenderOptions::default());
         let mut summary = summarize_chat(&chat, &spaces, &sessions);
@@ -596,14 +596,14 @@ impl Tools {
     }
 
     async fn create_chat(&self, args: CreateChatArgs) -> anyhow::Result<Value> {
-        if let Some(origin) = self.zeron.origin().chat_id.as_deref() {
-            let chat = self.zeron.resolve_chat(origin).await?;
+        if let Some(origin) = self.nekouro.origin().chat_id.as_deref() {
+            let chat = self.nekouro.resolve_chat(origin).await?;
             anyhow::ensure!(
                 chat.parent_chat_id.is_none(),
                 "Side chats cannot create chats. Ask your parent chat to create another side chat."
             );
         }
-        let harnesses = self.zeron.harnesses().await?;
+        let harnesses = self.nekouro.harnesses().await?;
         let harness = match args.harness.as_deref() {
             Some(raw) => {
                 let id: HarnessId = parse_enum("harness", raw).map_err(anyhow::Error::msg)?;
@@ -619,7 +619,7 @@ impl Tools {
             None => default_harness(&harnesses)?,
         };
         if let Some(model) = args.model.as_deref()
-            && let Ok(models) = self.zeron.models(harness).await
+            && let Ok(models) = self.nekouro.models(harness).await
             && !models.is_empty()
             && !models.iter().any(|m| m.id == model)
         {
@@ -650,13 +650,13 @@ impl Tools {
 
         let (space, device_id) = match args.project.as_deref() {
             Some(project) => {
-                let space = self.zeron.resolve_space(project).await?;
+                let space = self.nekouro.resolve_space(project).await?;
                 let device_id = space.device_id.clone();
                 (Some(space), device_id)
             }
             None => (
                 None,
-                self.zeron.resolve_device_id(args.device.as_deref()).await?,
+                self.nekouro.resolve_device_id(args.device.as_deref()).await?,
             ),
         };
 
@@ -668,12 +668,12 @@ impl Tools {
             .map(str::trim)
             .filter(|p| !p.is_empty())
         {
-            Some(key) => Some(self.zeron.resolve_chat(key).await?.id),
-            None => self.zeron.origin().chat_id.clone(),
+            Some(key) => Some(self.nekouro.resolve_chat(key).await?.id),
+            None => self.nekouro.origin().chat_id.clone(),
         };
 
         if let Some(parent) = parent_chat_id.as_deref() {
-            let chat = self.zeron.resolve_chat(parent).await?;
+            let chat = self.nekouro.resolve_chat(parent).await?;
             anyhow::ensure!(
                 chat.parent_chat_id.is_none(),
                 "Cannot create a child of a side chat. Choose a top-level parent chat."
@@ -703,14 +703,14 @@ impl Tools {
         if let Some(cwd) = args.cwd.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
             mutate["cwd"] = json!(cwd);
         }
-        self.zeron.mutate(mutate).await?;
+        self.nekouro.mutate(mutate).await?;
         if let Some(title) = args
             .title
             .as_deref()
             .map(str::trim)
             .filter(|t| !t.is_empty())
         {
-            self.zeron
+            self.nekouro
                 .mutate(json!({ "op": "renameChat", "chatId": chat_id, "title": title }))
                 .await?;
         }
@@ -768,8 +768,8 @@ impl Tools {
     }
 
     async fn read_chat(&self, args: ReadChatArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
-        let entries = self.zeron.transcript(&chat.id).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
+        let entries = self.nekouro.transcript(&chat.id).await?;
         let rendered = render_entries(
             &entries,
             RenderOptions {
@@ -799,17 +799,17 @@ impl Tools {
         if text.is_empty() {
             anyhow::bail!("text is empty");
         }
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
-        if self.zeron.origin().chat_id.as_deref() == Some(chat.id.as_str()) {
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
+        if self.nekouro.origin().chat_id.as_deref() == Some(chat.id.as_str()) {
             anyhow::bail!(
                 "refusing to send a message to your own chat ({})",
                 short(&chat.id)
             );
         }
         let (spaces, sessions, harnesses) = tokio::try_join!(
-            self.zeron.spaces(),
-            self.zeron.sessions(),
-            self.zeron.harnesses()
+            self.nekouro.spaces(),
+            self.nekouro.sessions(),
+            self.nekouro.harnesses()
         )?;
         let space = chat
             .space_id
@@ -841,7 +841,7 @@ impl Tools {
     }
 
     async fn wait_for_turn(&self, args: WaitArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let turn = self
             .await_turn(&chat, None, false, wait_duration(args.timeout_secs), 0)
             .await?;
@@ -849,29 +849,29 @@ impl Tools {
     }
 
     async fn archive_chat(&self, args: ArchiveArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let archived = args.archived.unwrap_or(true);
-        self.zeron
+        self.nekouro
             .mutate(json!({ "op": "setChatArchived", "chatId": chat.id, "archived": archived }))
             .await?;
         Ok(json!({ "chatId": chat.id, "title": chat.title, "archived": archived }))
     }
 
     async fn interrupt_chat(&self, args: ChatArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let command_id = self
-            .zeron
+            .nekouro
             .queue_command(&chat.id, &SessionCommandPayload::Interrupt {})
             .await?;
         Ok(json!({ "chatId": chat.id, "commandId": command_id }))
     }
 
     async fn respond_to_input(&self, args: RespondArgs) -> anyhow::Result<Value> {
-        let chat = self.zeron.resolve_chat(&args.chat).await?;
+        let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let request_id = match args.request_id {
             Some(id) => id,
             None => {
-                let entries = self.zeron.transcript(&chat.id).await?;
+                let entries = self.nekouro.transcript(&chat.id).await?;
                 let rendered = render_entries(&entries, RenderOptions::default());
                 last_pending_input(&rendered)
                     .and_then(|p| {
@@ -896,7 +896,7 @@ impl Tools {
             })
             .collect();
         let command_id = self
-            .zeron
+            .nekouro
             .queue_command(
                 &chat.id,
                 &SessionCommandPayload::RespondInput {
@@ -914,13 +914,13 @@ impl Tools {
     /// the receiving agent (and the human reading that transcript) can tell
     /// an agent-to-agent message from a typed one.
     async fn attribute(&self, target: &Chat, text: &str) -> String {
-        let Some(origin_id) = self.zeron.origin().chat_id.as_deref() else {
+        let Some(origin_id) = self.nekouro.origin().chat_id.as_deref() else {
             return text.to_owned();
         };
         if origin_id == target.id {
             return text.to_owned();
         }
-        let title = match self.zeron.resolve_chat(origin_id).await {
+        let title = match self.nekouro.resolve_chat(origin_id).await {
             Ok(chat) => chat.title,
             Err(_) => None,
         };
@@ -931,7 +931,7 @@ impl Tools {
             _ => short(origin_id).to_owned(),
         };
         format!(
-            "[Message from Zeron chat {label}. Reply to it with the Zeron `send_message` tool, chat {}.]\n\n{text}",
+            "[Message from NekoUro chat {label}. Reply to it with the NekoUro `send_message` tool, chat {}.]\n\n{text}",
             short(origin_id)
         )
     }
@@ -995,7 +995,7 @@ impl Tools {
                     attachments: Vec::new(),
                     worktree: None,
                 };
-                self.zeron
+                self.nekouro
                     .queue_command(
                         &chat.id,
                         &SessionCommandPayload::Run {
@@ -1006,7 +1006,7 @@ impl Tools {
                     .await?
             }
             "steer" => {
-                self.zeron
+                self.nekouro
                     .queue_command(
                         &chat.id,
                         &SessionCommandPayload::Steer {
@@ -1016,7 +1016,7 @@ impl Tools {
                     )
                     .await?
             }
-            _ => self.zeron.queue_message(&chat.id, &text).await?,
+            _ => self.nekouro.queue_message(&chat.id, &text).await?,
         };
         Ok(json!({
             "delivery": chosen,
@@ -1036,10 +1036,10 @@ impl Tools {
         since_millis: i64,
     ) -> anyhow::Result<Value> {
         let (outcome, session) = self
-            .zeron
+            .nekouro
             .wait_for_turn(chat, baseline, expect_turn, timeout)
             .await?;
-        let entries = self.zeron.transcript(&chat.id).await.unwrap_or_default();
+        let entries = self.nekouro.transcript(&chat.id).await.unwrap_or_default();
         let rendered = render_entries(&entries, RenderOptions::default());
         let replies: Vec<&RenderedMessage> = rendered
             .iter()
@@ -1089,7 +1089,7 @@ fn default_harness(harnesses: &[HarnessInfo]) -> anyhow::Result<HarnessId> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zeron::Origin;
+    use crate::nekouro::Origin;
     use async_trait::async_trait;
     use futures::StreamExt;
     use std::sync::Mutex;
@@ -1176,7 +1176,7 @@ mod tests {
 
     fn tools(world: Arc<World>, origin: Origin) -> Tools {
         let client = memory_client(world);
-        Tools::new(Arc::new(Zeron::with_client(client, origin)))
+        Tools::new(Arc::new(NekoUro::with_client(client, origin)))
     }
 
     #[tokio::test]
@@ -1250,7 +1250,7 @@ mod tests {
         assert_eq!(params["command"]["kind"], "run");
         let prompt = params["command"]["request"]["prompt"].as_str().unwrap();
         assert!(
-            prompt.starts_with("[Message from Zeron chat Beta (chat-bet)"),
+            prompt.starts_with("[Message from NekoUro chat Beta (chat-bet)"),
             "{prompt}"
         );
         assert!(prompt.ends_with("please review"));
@@ -1263,7 +1263,7 @@ mod tests {
     async fn auto_steers_busy_chats_even_at_turn_boundaries_or_after_long_quiet_tools() {
         let world = Arc::new(World::default());
         let tools = tools(world.clone(), Origin::default());
-        let chats = tools.zeron.chats().await.unwrap();
+        let chats = tools.nekouro.chats().await.unwrap();
         let session = Session {
             chat_id: chats[0].id.clone(),
             device_id: "dev-local".into(),

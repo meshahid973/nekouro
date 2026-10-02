@@ -3,7 +3,7 @@
 // Usage: node scripts/resource-profile.mjs BINARY OUTPUT_DIR [claude-code|mock]
 // DISPLAY must name a working X server; unset WAYLAND_DISPLAY for Xvfb.
 // Uses isolated local data and a real harness (Haiku by default). This costs
-// one API turn. RSS/CPU for the CLI child are reported separately from Zeron.
+// one API turn. RSS/CPU for the CLI child are reported separately from NekoUro.
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdirSync, openSync, readFileSync, writeFileSync, existsSync, readdirSync, copyFileSync, createReadStream } from 'node:fs';
 import { resolve } from 'node:path';
@@ -28,7 +28,7 @@ if (macOS) execFileSync('xcrun', ['clang', '-O2', '-Wall', '-Wextra',
 if (macOS) execFileSync('swiftc', ['-O', nativeWindowSource, '-o', nativeWindow]);
 // Shared Cargo targets can be replaced by another worktree mid-profile.
 // Both processes must execute the exact same immutable build throughout.
-const profiledBinary = `${output}/zeron-profiled`;
+const profiledBinary = `${output}/nekouro-profiled`;
 copyFileSync(binary, profiledBinary);
 const binaryHash = createHash('sha256');
 for await (const chunk of createReadStream(profiledBinary)) binaryHash.update(chunk);
@@ -47,7 +47,7 @@ const server = createServer();
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const port = server.address().port;
 await new Promise(r => server.close(r));
-const env = { ...process.env, ZERON_IPC_PORT: String(port), ZERON_DATA_DIR: `${output}/engine`,
+const env = { ...process.env, ZERON_IPC_PORT: String(port), NEKOURO_DATA_DIR: `${output}/engine`,
   ZERON_HARNESS: harness, ZERON_FRAME_STATS: process.env.ZERON_FRAME_STATS ?? '1', RUST_LOG: 'warn',
   ZERON_MOCK_CHARS: '24', ZERON_MOCK_DELAY_MS: '20' };
 delete env.ZERON_EDGE_TOKEN;
@@ -163,7 +163,7 @@ try {
   } });
   ws.send(JSON.stringify({ id, method: 'WatchDocMessages', params: { chatId } }));
   const locator = createHash('sha256').update(`Local\0device:${deviceId}`).digest('hex').slice(0, 16);
-  const ui = start([`zeron://open/chat/${chatId}?workspace=${locator}`], 'ui', { ZERON_DATA_DIR: `${output}/ui` });
+  const ui = start([`nekouro://open/chat/${chatId}?workspace=${locator}`], 'ui', { NEKOURO_DATA_DIR: `${output}/ui` });
   writeFileSync(`${output}/pids.json`, JSON.stringify({engine: engine.pid, ui: ui.pid}));
   // Native windows activate themselves. Let the initial layout/splash settle.
   if (macOS) {
@@ -176,7 +176,7 @@ try {
   if (!macOS && process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     await sleep(2000);
     const windows = execFileSync('xdotool', ['search', '--class', '^zeron$'], { encoding: 'utf8' }).trim().split('\n');
-    if (windows.length !== 1) throw Error('Use a dedicated X display with exactly one Zeron window');
+    if (windows.length !== 1) throw Error('Use a dedicated X display with exactly one NekoUro window');
     execFileSync('xdotool', ['windowraise', windows[0], 'windowsize', windows[0], '1280', '800', 'windowfocus', windows[0]]);
   }
   sampler = setInterval(() => {

@@ -1,6 +1,6 @@
 //! Updates for Windows installs — the per-user installer
 //! (`dist/windows/zeron.iss`) and the portable zip. Both place
-//! `zeron-update.json` beside `zeron.exe`; source builds remain unmanaged.
+//! `nekouro-update.json` beside `nekouro.exe`; source builds remain unmanaged.
 use std::io::Read;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
@@ -13,17 +13,17 @@ use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
 };
 
-const CONFIG: &str = "zeron-update.json";
+const CONFIG: &str = "nekouro-update.json";
 /// The running image, moved aside during a swap. A running executable can be
 /// renamed but not deleted, so the file survives until the process exits and
 /// is removed by the relaunched instance (or the next update attempt).
-const BACKUP: &str = "zeron.exe.old";
+const BACKUP: &str = "nekouro.exe.old";
 /// Deterministic name for the copy that becomes the next installation; a
 /// crash between the two renames leaves at most this file behind.
-const INCOMING: &str = ".zeron-update-incoming.exe";
+const INCOMING: &str = ".nekouro-update-incoming.exe";
 /// The installer's uninstall entry (`AppId` in `dist/windows/zeron.iss`, plus
 /// Inno Setup's `_is1` suffix). Settings → Apps reads `DisplayVersion` here.
-const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{AD5DEC34-E254-467B-8F24-8127EBAF4DA6}_is1";
+const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{D2402C03-F657-4910-8FC3-33F7334881B7}_is1";
 
 #[derive(serde::Deserialize)]
 struct Config {
@@ -31,7 +31,7 @@ struct Config {
 }
 
 pub(super) fn is_managed(exe: &Path) -> bool {
-    exe.file_name().is_some_and(|name| name == "zeron.exe")
+    exe.file_name().is_some_and(|name| name == "nekouro.exe")
         && exe.parent().is_some_and(|dir| dir.join(CONFIG).is_file())
 }
 
@@ -46,7 +46,7 @@ pub(super) fn release_url() -> anyhow::Result<Option<String>> {
 }
 
 pub fn artifact(version: &str) -> String {
-    format!("zeron-{version}-windows-{}.exe", std::env::consts::ARCH)
+    format!("nekouro-{version}-windows-{}.exe", std::env::consts::ARCH)
 }
 
 /// Download next to the installation, verifying its mandatory checksum.
@@ -75,9 +75,9 @@ pub async fn stage(
         "invalid SHA-256 checksum"
     );
     let temporary = tempfile::Builder::new()
-        .prefix(".zeron-update-")
+        .prefix(".nekouro-update-")
         .tempdir_in(directory)?;
-    let staged = temporary.path().join("zeron.exe");
+    let staged = temporary.path().join("nekouro.exe");
     super::download_release_file(edge_url, manifest, &file, &staged).await?;
     std::fs::write(temporary.path().join("sha256"), expected)?;
     std::fs::write(temporary.path().join("version"), &manifest.version)?;
@@ -136,7 +136,7 @@ fn verify_digest(path: &Path, expected: &str) -> anyhow::Result<()> {
 /// and [`Self::recover_from_backup`] cover the leftovers of a hard crash
 /// between the two renames.
 pub fn apply(staged: &Path, directory: &Path, relaunch: bool) -> anyhow::Result<()> {
-    let installed = directory.join("zeron.exe");
+    let installed = directory.join("nekouro.exe");
     ensure!(
         std::env::current_exe()?.canonicalize()? == installed.canonicalize()?,
         "update must run from its installation"
@@ -347,9 +347,9 @@ mod tests {
         }
     }
 
-    /// A staged update layout: `<dir>/zeron.exe` plus its `sha256` sidecar.
+    /// A staged update layout: `<dir>/nekouro.exe` plus its `sha256` sidecar.
     fn staged_with(dir: &Path, bytes: &[u8]) -> PathBuf {
-        let staged = dir.join("zeron.exe");
+        let staged = dir.join("nekouro.exe");
         std::fs::write(&staged, bytes).unwrap();
         std::fs::write(dir.join("sha256"), format!("{:x}", Sha256::digest(bytes))).unwrap();
         staged
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn portable_install_requires_explicit_configuration() {
         let dir = tempfile::tempdir().unwrap();
-        let exe = dir.path().join("zeron.exe");
+        let exe = dir.path().join("nekouro.exe");
         assert!(!is_managed(&exe));
         std::fs::write(dir.path().join(CONFIG), "{}").unwrap();
         assert!(is_managed(&exe));
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn changed_staging_file_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
-        let exe = dir.path().join("zeron.exe");
+        let exe = dir.path().join("nekouro.exe");
         std::fs::write(&exe, b"original").unwrap();
         std::fs::write(
             dir.path().join("sha256"),
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn failed_swap_after_old_image_moved_restores_the_installation() {
         let install = tempfile::tempdir().unwrap();
-        let installed = install.path().join("zeron.exe");
+        let installed = install.path().join("nekouro.exe");
         std::fs::write(&installed, b"old image").unwrap();
         let stage = tempfile::tempdir().unwrap();
         let staged = staged_with(stage.path(), b"new image");
@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn corrupt_copy_is_rejected_before_the_installation_moves() {
         let install = tempfile::tempdir().unwrap();
-        let installed = install.path().join("zeron.exe");
+        let installed = install.path().join("nekouro.exe");
         std::fs::write(&installed, b"old image").unwrap();
         let stage = tempfile::tempdir().unwrap();
         let staged = staged_with(stage.path(), b"new image");
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn backup_recovers_a_missing_installation_and_clears_when_intact() {
         let install = tempfile::tempdir().unwrap();
-        let installed = install.path().join("zeron.exe");
+        let installed = install.path().join("nekouro.exe");
         let backup = install.path().join(BACKUP);
         std::fs::write(&backup, b"survivor").unwrap();
 
@@ -489,7 +489,7 @@ mod tests {
                 .unwrap();
         });
         let dir = tempfile::tempdir().unwrap();
-        let installed = dir.path().join("zeron.exe");
+        let installed = dir.path().join("nekouro.exe");
         std::fs::write(&installed, b"existing installation").unwrap();
         let manifest = super::super::Manifest {
             version: "1.2.3".into(),

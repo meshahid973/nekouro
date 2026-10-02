@@ -12796,7 +12796,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zeron"
+name = "nekouro"
 version = "0.2.102"
 dependencies = [
  "anyhow",
