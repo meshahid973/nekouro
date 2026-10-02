@@ -764,11 +764,11 @@ pub fn apply_headless(app_root: &Path, version: &str) -> anyhow::Result<()> {
 }
 
 /// Whether this process is the engine service [`restart_service`] manages:
-/// systemd places it in the `zeron.service` cgroup; launchd names the job in
+/// systemd places it in the `nekouro.service` cgroup; launchd names the job in
 /// `XPC_SERVICE_NAME`.
 pub fn running_as_installed_service() -> bool {
     if cfg!(target_os = "macos") {
-        std::env::var("XPC_SERVICE_NAME").is_ok_and(|label| label == "sh.zeron.app")
+        std::env::var("XPC_SERVICE_NAME").is_ok_and(|label| label == "sh.nekouro.app")
     } else if cfg!(target_os = "linux") {
         std::fs::read_to_string("/proc/self/cgroup")
             .is_ok_and(|cgroups| in_zeron_service_cgroup(&cgroups))
@@ -781,10 +781,10 @@ fn in_zeron_service_cgroup(cgroups: &str) -> bool {
     cgroups
         .lines()
         .filter_map(|line| line.rsplit(':').next())
-        .any(|path| path.split('/').any(|part| part == "zeron.service"))
+        .any(|path| path.split('/').any(|part| part == "nekouro.service"))
 }
 
-/// Restart the installed engine service (the same units `zeron daemon` and the
+/// Restart the installed engine service (the same units `nekouro daemon` and the
 /// curl|sh installer manage). Called after a symlink swap so the running daemon
 /// picks up the new binary. Only queues the restart: the caller may be the
 /// service itself, which must stay responsive to the stop signal that follows.
@@ -795,12 +795,12 @@ pub fn restart_service() -> anyhow::Result<()> {
         let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
         run(
             "launchctl",
-            &["kickstart", "-k", &format!("gui/{uid}/sh.zeron.app")],
+            &["kickstart", "-k", &format!("gui/{uid}/sh.nekouro.app")],
         )
     } else {
         run(
             "systemctl",
-            &["--user", "--no-block", "restart", "zeron.service"],
+            &["--user", "--no-block", "restart", "nekouro.service"],
         )
     }
 }

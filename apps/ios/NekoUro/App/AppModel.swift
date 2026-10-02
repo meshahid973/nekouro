@@ -77,7 +77,7 @@ final class AppModel {
         path.pathUpdateHandler = { [weak self] p in
             DispatchQueue.main.async { self?.client?.setNetworkOnline(online: p.status == .satisfied) }
         }
-        path.start(queue: DispatchQueue(label: "sh.zeron.path"))
+        path.start(queue: DispatchQueue(label: "sh.nekouro.path"))
         let args = ProcessInfo.processInfo.arguments
         #if DEBUG
         // Test hooks (never in release builds): wipe the Keychain, or run
@@ -577,7 +577,7 @@ extension Credentials {
         return false
     }
 
-    private static let service = "sh.zeron.ios"
+    private static let service = "sh.nekouro.ios"
     private static let account = "credentials"
 
     static func stored() -> Credentials? {
@@ -663,7 +663,7 @@ struct AccountProfile: Codable {
     var email: String?
     var orgName: String?
 
-    private static let service = "sh.zeron.ios"
+    private static let service = "sh.nekouro.ios"
     private static let account = "profile"
 
     static func load() -> AccountProfile {
