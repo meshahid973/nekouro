@@ -29,7 +29,7 @@ const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(15);
 const RESUBSCRIBE_DELAY: Duration = Duration::from_millis(300);
 
 /// Which chat this server speaks for, when the engine injected it into a
-/// harness. Unset when a human runs `zeron mcp` from a terminal.
+/// harness. Unset when a human runs `nekouro mcp` from a terminal.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Origin {
     pub chat_id: Option<String>,
@@ -104,13 +104,13 @@ pub enum TurnOutcome {
     TimedOut,
 }
 
-pub struct Zeron {
+pub struct NekoUro {
     url: String,
     origin: Origin,
     rpc: Mutex<Option<Arc<RpcClient>>>,
 }
 
-impl Zeron {
+impl NekoUro {
     /// Lazy dialer: nothing connects until the first tool call, so `zeron
     /// mcp` starts (and answers `initialize`) even before the engine is up.
     pub fn new(url: String, origin: Origin) -> Self {
@@ -144,7 +144,7 @@ impl Zeron {
         }
         let client = connect_ws(&self.url).await.map_err(|e| {
             anyhow!(
-                "no Zeron engine listening at {} ({e}) — is Zeron running?",
+                "no NekoUro engine listening at {} ({e}) — is NekoUro running?",
                 self.url
             )
         })?;
@@ -612,7 +612,7 @@ mod tests {
         }
         let (watched, _) = tokio::sync::watch::channel(());
         let rpc = zeron_rpc::memory_client(Arc::new(Service(watched.clone())));
-        let client = Zeron::with_client(rpc, Origin::default());
+        let client = NekoUro::with_client(rpc, Origin::default());
         for _ in 0..16 {
             assert!(client.transcript("quiet").await.unwrap().is_empty());
             client

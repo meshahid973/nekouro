@@ -619,9 +619,9 @@ fn parse_semantic_style(value: &Value) -> SemanticStyle {
 fn convert(theme: NormalizedTheme, options: ImportOptions) -> Result<ImportResult> {
     let registry = ThemeRegistry::builtin();
     let base_id = if options.appearance.is_dark() {
-        "zeron-dark"
+        "nekouro-dark"
     } else {
-        "zeron-light"
+        "nekouro-light"
     };
     let mut output = registry
         .variant(base_id)
