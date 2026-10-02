@@ -2,7 +2,7 @@
 //!
 //! `nekouro mcp` speaks MCP (JSON-RPC 2.0, newline-delimited) on stdin/stdout
 //! and proxies every tool into the engine's localhost IPC — the same
-//! `zeron_rpc` WebSocket the headed app and `zeron sync` dial. Nothing here
+//! `zeron_rpc` WebSocket the headed app and `nekouro sync` dial. Nothing here
 //! talks to the edge or touches the filesystem: the engine stays the single
 //! authority for chats, devices, projects, and the command plane.
 //!
@@ -24,7 +24,7 @@ mod nekouro;
 pub use jsonrpc::serve_stdio;
 pub use tools::{ToolDef, Tools};
 pub use transcript::{RenderOptions, RenderedMessage, render_entries};
-pub use nekouro::{Origin, Zeron};
+pub use nekouro::{NekoUro, Origin};
 
 /// How `nekouro mcp` finds the engine and who it speaks for.
 #[derive(Debug, Clone)]
@@ -52,7 +52,7 @@ impl McpConfig {
 
 /// Run the MCP server on this process's stdin/stdout until stdin closes.
 pub async fn run(config: McpConfig) -> anyhow::Result<()> {
-    let zeron = Zeron::new(format!("ws://127.0.0.1:{}", config.ipc_port), config.origin);
-    let tools = Tools::new(std::sync::Arc::new(zeron));
+    let nekouro = NekoUro::new(format!("ws://127.0.0.1:{}", config.ipc_port), config.origin);
+    let tools = Tools::new(std::sync::Arc::new(nekouro));
     serve_stdio(std::sync::Arc::new(tools)).await
 }
