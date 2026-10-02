@@ -4,7 +4,7 @@ import UIKit
 enum Endpoints {
     static let edgeURL = URL(string: "https://edge.zeron.sh")!
     static let workosClientId = "client_01KWD0EAKZKD50YCQJNYSRE4BY"
-    static let callbackScheme = "zeron"
+    static let callbackScheme = "nekouro"
 
     static func authorizeURL(state: String) -> URL {
         var c = URLComponents(string: "https://api.workos.com/user_management/authorize")!
@@ -39,7 +39,7 @@ final class SignInViewController: UIViewController, ASWebAuthenticationPresentat
         let mark = UIImageView(image: UIImage(systemName: "sparkle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 44, weight: .light)))
         mark.tintColor = Palette.text
         let title = UILabel()
-        title.text = "Zeron"
+        title.text = "NekoUro"
         title.font = Fonts.ui(.sansSemibold, 34)
         title.textColor = Palette.text
         let tagline = UILabel()

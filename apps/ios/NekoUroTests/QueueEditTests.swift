@@ -1,5 +1,5 @@
 import XCTest
-@testable import Zeron
+@testable import NekoUro
 
 /// Committing a queued-message edit rewrites only what the composer showed;
 /// formats are the core's (`crates/client/src/attachments.rs`).

@@ -1,6 +1,6 @@
 import CoreText
 import XCTest
-@testable import Zeron
+@testable import NekoUro
 
 /// Pretext's accuracy methodology with CoreText as ground truth: lay out a
 /// corpus at many widths with Rust (`debug_line_starts`) and with
