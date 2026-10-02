@@ -860,7 +860,7 @@ impl Tools {
     async fn interrupt_chat(&self, args: ChatArgs) -> anyhow::Result<Value> {
         let chat = self.nekouro.resolve_chat(&args.chat).await?;
         let command_id = self
-            .zeron
+            .nekouro
             .queue_command(&chat.id, &SessionCommandPayload::Interrupt {})
             .await?;
         Ok(json!({ "chatId": chat.id, "commandId": command_id }))
@@ -896,7 +896,7 @@ impl Tools {
             })
             .collect();
         let command_id = self
-            .zeron
+            .nekouro
             .queue_command(
                 &chat.id,
                 &SessionCommandPayload::RespondInput {
@@ -1036,7 +1036,7 @@ impl Tools {
         since_millis: i64,
     ) -> anyhow::Result<Value> {
         let (outcome, session) = self
-            .zeron
+            .nekouro
             .wait_for_turn(chat, baseline, expect_turn, timeout)
             .await?;
         let entries = self.nekouro.transcript(&chat.id).await.unwrap_or_default();
@@ -1263,7 +1263,7 @@ mod tests {
     async fn auto_steers_busy_chats_even_at_turn_boundaries_or_after_long_quiet_tools() {
         let world = Arc::new(World::default());
         let tools = tools(world.clone(), Origin::default());
-        let chats = tools.zeron.chats().await.unwrap();
+        let chats = tools.nekouro.chats().await.unwrap();
         let session = Session {
             chat_id: chats[0].id.clone(),
             device_id: "dev-local".into(),
