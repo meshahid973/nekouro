@@ -15,12 +15,12 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # A fake release: the tarball layout package-linux.sh produces, minus the real
 # binary. `uname` is shimmed so the curl installer also runs on a macOS dev box.
-PKG="zeron-$VERSION-linux-x86_64"
+PKG="nekouro-$VERSION-linux-x86_64"
 mkdir -p "$WORK/site/releases" "$WORK/pkg/$PKG" "$WORK/shim"
-printf '#!/bin/sh\nexit 0\n' >"$WORK/pkg/$PKG/zeron"
-chmod 755 "$WORK/pkg/$PKG/zeron"
-cp "$ROOT/dist/zeron.desktop" "$WORK/pkg/$PKG/zeron.desktop"
-printf 'not-really-a-png' >"$WORK/pkg/$PKG/zeron.png"
+printf '#!/bin/sh\nexit 0\n' >"$WORK/pkg/$PKG/nekouro"
+chmod 755 "$WORK/pkg/$PKG/nekouro"
+cp "$ROOT/dist/nekouro.desktop" "$WORK/pkg/$PKG/nekouro.desktop"
+printf 'not-really-a-png' >"$WORK/pkg/$PKG/nekouro.png"
 echo "$VERSION" >"$WORK/site/releases/latest.txt"
 tar -czf "$WORK/site/releases/$PKG.tar.gz" -C "$WORK/pkg" "$PKG"
 printf '#!/bin/sh\ncase "$1" in -s) echo Linux ;; -m) echo x86_64 ;; *) exec /usr/bin/uname "$@" ;; esac\n' >"$WORK/shim/uname"
@@ -58,16 +58,16 @@ run_tarball() {
 
 # check HOME DATA_HOME
 check() {
-  local home="$1" data="$2" entry="$2/applications/zeron.desktop"
+  local home="$1" data="$2" entry="$2/applications/nekouro.desktop"
   [ -f "$entry" ] || fail "missing $entry"
-  [ -f "$data/icons/hicolor/1024x1024/apps/zeron.png" ] || fail "missing hicolor icon"
+  [ -f "$data/icons/hicolor/1024x1024/apps/nekouro.png" ] || fail "missing hicolor icon"
   # `$(...)` strips nothing needed here: paths in these tests have no newlines.
-  grep -qxF "TryExec=$home/.zeron/app/current/zeron" "$entry" || fail "TryExec: $(grep '^TryExec' "$entry")"
-  grep -qxF "Icon=$home/.zeron/app/current/zeron.png" "$entry" || fail "Icon: $(grep '^Icon' "$entry")"
-  grep -qxF "StartupWMClass=zeron" "$entry" || fail "StartupWMClass changed"
+  grep -qxF "TryExec=$home/.nekouro/app/current/nekouro" "$entry" || fail "TryExec: $(grep '^TryExec' "$entry")"
+  grep -qxF "Icon=$home/.nekouro/app/current/nekouro.png" "$entry" || fail "Icon: $(grep '^Icon' "$entry")"
+  grep -qxF "StartupWMClass=nekouro" "$entry" || fail "StartupWMClass changed"
   [ "$(grep -c '^\[Desktop Entry\]' "$entry")" = 1 ] || fail "duplicated entry"
   [ "$(grep -c '^Exec=' "$entry")" = 1 ] || fail "Exec lines"
-  [ -z "$(find "$data" -name '.zeron*')" ] || fail "temp files left behind"
+  [ -z "$(find "$data" -name '.nekouro*')" ] || fail "temp files left behind"
   # A user-level icon cache is only ever refreshed, never created.
   [ ! -e "$data/icons/hicolor/icon-theme.cache" ] || fail "created a hicolor icon cache"
   if command -v desktop-file-validate >/dev/null 2>&1; then
@@ -82,12 +82,12 @@ for installer in curl tarball; do
   home="$WORK/$installer-a/home"; mkdir -p "$home"
   run "$home"
   check "$home" "$home/.local/share"
-  grep -qxF "Exec=$home/.zeron/app/current/zeron %u" "$home/.local/share/applications/zeron.desktop" \
+  grep -qxF "Exec=$home/.nekouro/app/current/nekouro %u" "$home/.local/share/applications/nekouro.desktop" \
     || fail "$installer: Exec line"
-  before="$(cat "$home/.local/share/applications/zeron.desktop")"
+  before="$(cat "$home/.local/share/applications/nekouro.desktop")"
   run "$home"
   check "$home" "$home/.local/share"
-  [ "$before" = "$(cat "$home/.local/share/applications/zeron.desktop")" ] || fail "$installer: re-run changed the entry"
+  [ "$before" = "$(cat "$home/.local/share/applications/nekouro.desktop")" ] || fail "$installer: re-run changed the entry"
 
   # XDG_DATA_HOME wins when absolute; a relative value is ignored per the spec.
   home="$WORK/$installer-b/home"; mkdir -p "$home"
@@ -104,8 +104,8 @@ for installer in curl tarball; do
   check "$home" "$home/.local/share"
   # Spec: quote the argument, `\` before " and $ (doubled again for the file's
   # string escaping), and `%%` for a literal `%`.
-  want="Exec=\"$WORK/$installer-d/"'h o\\$me\\"x%%y'"/.zeron/app/current/zeron\" %u"
-  grep -qxF "$want" "$home/.local/share/applications/zeron.desktop" \
-    || fail "$installer: Exec quoting: $(grep '^Exec=' "$home/.local/share/applications/zeron.desktop")"
+  want="Exec=\"$WORK/$installer-d/"'h o\\$me\\"x%%y'"/.nekouro/app/current/nekouro\" %u"
+  grep -qxF "$want" "$home/.local/share/applications/nekouro.desktop" \
+    || fail "$installer: Exec quoting: $(grep '^Exec=' "$home/.local/share/applications/nekouro.desktop")"
   echo "ok: $installer installer"
 done
