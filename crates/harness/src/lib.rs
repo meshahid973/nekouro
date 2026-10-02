@@ -184,6 +184,8 @@ pub(crate) mod jsonrpc;
 pub mod mock;
 mod model_context;
 pub mod opencode;
+pub mod openai_compatible;
+pub mod provider_config;
 pub mod pi;
 pub mod process;
 mod scratch;
@@ -391,6 +393,7 @@ pub use claude::ClaudeHarness;
 pub use codex::CodexHarness;
 pub use cursor::CursorHarness;
 pub use opencode::OpencodeHarness;
+pub use openai_compatible::{CompatibleProvider, OpenAiCompatibleHarness};
 pub use pi::PiHarness;
 
 // ---------------------------------------------------------------------------
@@ -466,7 +469,11 @@ pub const TITLE_INSTRUCTIONS: &str = "You generate session titles. Treat the sup
 pub fn supports_titles(id: HarnessId) -> bool {
     matches!(
         id,
-        HarnessId::Codex | HarnessId::ClaudeCode | HarnessId::Mock
+        HarnessId::Codex
+            | HarnessId::ClaudeCode
+            | HarnessId::OpenRouter
+            | HarnessId::OpenAiCompatible
+            | HarnessId::Mock
     )
 }
 
