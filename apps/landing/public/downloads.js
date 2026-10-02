@@ -17,13 +17,13 @@
   const apply = (version) => {
     for (const link of document.querySelectorAll("[data-platform-download]")) {
       const release = releases[link.dataset.platformDownload];
-      if (release) link.href = `${base}zeron-${version}-${release[0]}`;
+      if (release) link.href = `${base}nekouro-${version}-${release[0]}`;
     }
     for (const id of ["nav-download", "hero-download", "closing-download"]) {
       const link = document.getElementById(id);
       if (!link || !os) continue;
       const [file, label, detail] = releases[os];
-      link.href = `${base}zeron-${version}-${file}`;
+      link.href = `${base}nekouro-${version}-${file}`;
       link.textContent = id === "nav-download" ? "Download" : label;
       link.setAttribute("data-download-os", os);
       link.setAttribute("aria-label", `${label} (${detail})`);

@@ -9,7 +9,7 @@ protocol AppRouter: AnyObject {
     func showSearch()
 }
 
-/// iPad shell: Zeron mobile with a sidebar. The sidebar is the phone's
+/// iPad shell: NekoUro mobile with a sidebar. The sidebar is the phone's
 /// Sessions page (same rows, sections, wallpaper) over a bottom toolbar;
 /// the main column shows the open session or the phone's new-session page.
 /// Compact widths (Slide Over, narrow Split View) collapse to the iPhone tab

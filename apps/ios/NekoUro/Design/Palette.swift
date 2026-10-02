@@ -9,7 +9,7 @@ enum Palette {
         }
     }
 
-    // Zeron Light / Zeron Dark (crates/theme builtins): cool neutrals, violet accent.
+    // NekoUro Light / NekoUro Dark (crates/theme builtins): cool neutrals, violet accent.
     static let background = dynamic(0xF3F3F5, 0x060606)
     /// The open session's row in the iPad sidebar.
     static let rowActive = dual(UIColor(white: 1, alpha: 0.9), UIColor(white: 1, alpha: 0.06))
